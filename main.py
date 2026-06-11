@@ -1458,6 +1458,23 @@ area_container.pack(
 )
 
 area_container.pack_propagate(False)
+
+# =========================================================
+# SITE SEARCH FRAME
+# =========================================================
+
+site_search_frame = tk.Frame(
+    area_container,
+    bg="white"
+)
+
+site_search_frame.pack(
+    fill="x",
+    padx=5,
+    pady=(5, 0)
+)
+
+
 # =========================================================
 # DEVICE CONTAINER
 # =========================================================
@@ -1470,6 +1487,53 @@ device_container.pack(
     fill="both",
     expand=True,
     padx=(10, 0)
+)
+
+# =========================================================
+# DEVICE SEARCH FRAME
+# =========================================================
+
+device_search_frame = tk.Frame(
+    device_container,
+    bg="white"
+)
+
+device_search_frame.pack(
+    fill="x",
+    padx=5,
+    pady=(5, 0)
+)
+
+# =========================================================
+# SEARCH AREA
+# =========================================================
+search_parent_var = tk.StringVar()
+
+search_parent_entry = tk.Entry(
+    site_search_frame,
+    textvariable=search_parent_var,
+    font=("Arial", 10)
+)
+
+search_parent_entry.pack(
+    fill="x",
+    pady=5
+)
+
+# =========================================================
+# SEARCH DEVICE
+# =========================================================
+search_device_var = tk.StringVar()
+
+search_device_entry = tk.Entry(
+    device_search_frame,
+    textvariable=search_device_var,
+    font=("Arial", 10)
+)
+
+search_device_entry.pack(
+    fill="x",
+    pady=5
 )
 
 # =========================================================
@@ -1493,7 +1557,6 @@ def on_area_configure(event):
     area_canvas.configure(
         scrollregion=area_canvas.bbox("all")
     )
-
 area_scrollable_frame.bind("<Configure>",on_area_configure)
 # =========================================================
 # CREATE AREA WINDOW
@@ -1502,51 +1565,6 @@ area_canvas.create_window((0, 0),window=area_scrollable_frame,anchor="nw")
 area_canvas.configure(yscrollcommand=area_scrollbar.set)
 area_canvas.pack(side="left",fill="both",expand=True)
 area_scrollbar.pack(side="right",fill="y")
-# ==== THANH TÌM KIẾM CHO DANH SÁCH CHA (area buttons) ====
-search_parent_var = tk.StringVar()
-
-def filter_parent_buttons(event=None):
-    keyword = search_parent_var.get().strip().lower()
-
-    matches = []
-    non_matches = []
-
-    for block, btn in parent_items:
-        text = btn.cget("text").lower()
-        if keyword == "" or keyword in text:
-            matches.append((block, btn))
-        else:
-            non_matches.append((block, btn))
-
-    # clear all from view
-    for block, btn in parent_items:
-        try:
-            block.pack_forget()
-        except Exception:
-            pass
-
-    # pack again: matches first, then non-matches
-    for block, btn in matches:
-        try:
-            block.pack(pady=10, anchor='w')
-        except Exception:
-            pass
-    for block, btn in non_matches:
-        try:
-            block.pack(pady=10, anchor='w')
-        except Exception:
-            pass
-
-    # update canvas scroll region
-    area_canvas.update_idletasks()
-    try:
-        area_canvas.configure(scrollregion=area_canvas.bbox("all"))
-    except Exception:
-        pass
-
-search_parent_entry = tk.Entry(area_container, textvariable=search_parent_var)
-search_parent_entry.pack(fill="x", padx=5, pady=(5, 2))
-search_parent_entry.bind("<KeyRelease>", filter_parent_buttons)
 # =========================================================
 # DEVICE CANVAS
 # =========================================================
@@ -1560,7 +1578,6 @@ def on_device_configure(event):
     device_canvas.configure(
         scrollregion=device_canvas.bbox("all")
     )
-
 device_scrollable_frame.bind(
     "<Configure>",
     on_device_configure
@@ -1583,6 +1600,96 @@ active_child_button = None
 # đang mở khu vực nào
 current_open_area = None
 parent_items = []  # list of (block_frame, button) tuples for area buttons
+device_items = []  # list of (block_frame, button) tuples for device buttons
+
+# ==== THANH TÌM KIẾM CHO DANH SÁCH CHA (area buttons) ====
+
+# =========================================================
+# HÀM XỬ LÝ LỌC VÀ ĐẨY NÚT KHU VỰC LÊN ĐẦU
+# =========================================================
+def filter_parent_buttons(event=None):
+    # LẤY TRỰC TIẾP TỪ Ô ENTRY (Thay vì dùng search_parent_var.get())
+    # Cách này giúp đảm bảo lấy đúng text hiển thị, không lo lỗi đồng bộ StringVar
+    keyword = search_parent_entry.get().strip().lower()
+    matches = []
+    non_matches = []
+
+    # Phân loại nút trùng khớp và không trùng khớp
+    for block, btn in parent_items:
+        text = btn.cget("text").lower()
+        if keyword == "" or keyword in text:
+            matches.append((block, btn))
+        else:
+            non_matches.append((block, btn))
+
+    # BƯỚC 1: Xóa toàn bộ các khối khỏi layout để chuẩn bị xếp lại thứ tự
+    for block, btn in parent_items:
+        block.pack_forget()
+
+    # BƯỚC 2: Đẩy các nút có từ khóa liên quan lên ĐẦU TIÊN
+    for block, btn in matches:
+        block.pack(
+            fill="x",
+            padx=5,
+            pady=4
+        )
+
+    # BƯỚC 3: Các nút KHÔNG liên quan sẽ bị đẩy xuống PHÍA DƯỚI CÙNG
+    for block, btn in non_matches:
+        block.pack(
+            fill="x",
+            padx=5,
+            pady=4
+        )
+
+    # Cập nhật lại vùng cuộn Canvas sau khi thay đổi vị trí các nút
+    area_scrollable_frame.update_idletasks()
+    area_canvas.configure(
+        scrollregion=area_canvas.bbox("all")
+    )
+# BƯỚC CỐT LÕI: Ràng buộc sự kiện KeyRelease vào đúng ô Entry đã tạo ở phần SEARCH AREA phía trên
+search_parent_entry.bind("<KeyRelease>", filter_parent_buttons)
+
+def filter_device_buttons(event=None):
+    # LẤY TRỰC TIẾP TỪ Ô ENTRY THIẾT BỊ
+    keyword = search_device_entry.get().strip().lower()
+    matches = []
+    non_matches = []
+
+    # Phân loại nút trùng khớp và không trùng khớp
+    for block, btn in device_items:
+        text = btn.cget("text").lower()
+        if keyword == "" or keyword in text:
+            matches.append((block, btn))
+        else:
+            non_matches.append((block, btn))
+
+    # BƯỚC 1: Xóa toàn bộ các khối thiết bị khỏi layout
+    for block, btn in device_items:
+        block.pack_forget()
+
+    # BƯỚC 2: Đẩy các thiết bị có từ khóa liên quan lên ĐẦU TIÊN
+    for block, btn in matches:
+        block.pack(
+            fill="x",
+            padx=5,
+            pady=3
+        )
+
+    # BƯỚC 3: Các thiết bị KHÔNG liên quan đẩy xuống PHÍA DƯỚI
+    for block, btn in non_matches:
+        block.pack(
+            fill="x",
+            padx=5,
+            pady=3
+        )
+
+    # LƯU Ý SỬA TẠI ĐÂY: Cập nhật lại vùng cuộn Canvas của THIẾT BỊ (Đã sửa từ area sang device)
+    device_scrollable_frame.update_idletasks()
+    device_canvas.configure(
+        scrollregion=device_canvas.bbox("all")
+    )
+search_device_entry.bind("<KeyRelease>", filter_device_buttons)
 
 # =========================================================
 # SET ACTIVE PARENT BUTTON
@@ -1712,81 +1819,69 @@ def hide_sub_buttons(state):
 # =========================================================
 # SHOW SUB BUTTONS
 # =========================================================
-def show_sub_buttons(
-    area_name,
-    state,
-    auto_select_first=False
-):
-    # =====================================================
-    # CLEAR DEVICE CŨ
-    # =====================================================
+def show_sub_buttons(area_name, state, auto_select_first=False):
+    # CẢI TIẾN: Reset ô tìm kiếm thiết bị về rỗng mỗi khi người dùng đổi Khu vực
+    search_device_entry.delete(0, tk.END)
+
+    # Xóa giao diện thiết bị cũ
     for widget in device_scrollable_frame.winfo_children():
         widget.destroy()
-    # Reset device scroll to top when switching areas
+        
     try:
         device_canvas.yview_moveto(0)
     except Exception:
         pass
+        
     state["buttons"].clear()
-    # =====================================================
-    # GET DEVICES
-    # =====================================================
-    devices = REPORT_FORM_MAPPING.get(
-        area_name,
-        {}
-    )
+    
+    # CỐT LÕI: Làm sạch danh sách thiết bị cũ để nạp danh sách thiết bị mới
+    device_items.clear() 
+    
+    devices = REPORT_FORM_MAPPING.get(area_name, {})
     first_child_btn = None
-    # =====================================================
-    # CREATE DEVICE BUTTON
-    # =====================================================
-    for idx, (device_name, file_path) in enumerate(
-        devices.items()
-    ):
+
+    for idx, (device_name, file_path) in enumerate(devices.items()):
+        # Tạo block_frame cho từng thiết bị để hỗ trợ việc pack/pack_forget khi lọc
+        block_frame = tk.Frame(device_scrollable_frame, bg="white")
+        
         btn = tk.Button(
-            device_scrollable_frame,
+            block_frame,
             text=device_name,
             font=("Arial", 11),
             height=2
         )
-        # =============================================
-        # NO ERROR
-        # =============================================
+        
+        # Thiết lập tập lệnh xử lý sự kiện click nút
         if "NO_ERROR" in device_name.upper():
             cmd = lambda p=file_path, b=btn: [
                 set_active_child_button(b),
                 handle_first_box_fill(),
-                show_text_from_local(
-                    p,
-                    is_no_error=True,
-                    start_timer_flag=False
-                )
+                show_text_from_local(p, is_no_error=True, start_timer_flag=False)
             ]
-        # =============================================
-        # NORMAL
-        # =============================================
         else:
             cmd = lambda p=file_path, b=btn: [
                 set_active_child_button(b),
                 handle_first_box_fill(),
-                show_text_from_local(
-                    p,
-                    start_timer_flag=True
-                )
+                show_text_from_local(p, start_timer_flag=True)
             ]
+            
         btn.config(command=cmd)
-        btn.pack(
-            fill="x",
-            padx=5,
-            pady=3
-        )
+        btn.pack(fill="x", padx=5, pady=3)
+        block_frame.pack(fill="x", padx=5, pady=3)
+        
+        # Lưu trữ trạng thái vào hệ thống
         state["buttons"].append(btn)
+        device_items.append((block_frame, btn)) # Đẩy vào mảng tracking lọc dữ liệu
+        
         if idx == 0:
             first_child_btn = btn
-    # =====================================================
-    # AUTO SELECT
-    # =====================================================
+
     if auto_select_first and first_child_btn:
         first_child_btn.invoke()
+        
+    # Cập nhật thanh cuộn thiết bị ban đầu
+    device_scrollable_frame.update_idletasks()
+    device_canvas.configure(scrollregion=device_canvas.bbox("all"))
 # =========================================================
 # AUTO CREATE AREA BUTTONS
 # =========================================================
@@ -1828,7 +1923,9 @@ def create_area_buttons():
         # pack the block into the scrollable frame
         block_frame.pack(fill="x", padx=5, pady=4)
         area_states[area_name]["button"] = list_button
-        parent_items.append((block_frame, list_button))
+        parent_items.append(
+    (block_frame, list_button)
+)
     # =============================================
     # UPDATE SCROLL REGION
     # =============================================
