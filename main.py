@@ -4611,4 +4611,3 @@ show_startup_window()
 
 # ==== CHẠY ỨNG DỤNG ====
 root.mainloop()
-
