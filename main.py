@@ -25,7 +25,7 @@ BASE_URL = (
     "https://aeondelight-my.sharepoint.com/"
     "personal/phuc_nguyen_aeondelight_biz/"
     "Documents/PHUC/PHUC/AZURE/"
-    "RMC%20DATA%20STORAGE"
+    "RMC%20DATA%20STORAGE%20V2"
 )
 
 # ============= LINK ONEDRIVE OF REPORT FORM ===============
@@ -37,34 +37,42 @@ CLIENT_ID = "ac4edccf-a8ee-41aa-bcc4-6603c4bebae1"
 TENANT_ID = "5983a1d2-f46b-492d-a9b3-7e2f3609d20b"
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 GRAPH_SCOPES = ["Files.Read"]
-CACHE_DIR = r"D:\RMC_Assistant_test\Cache"
+CACHE_DIR = r"D:\RMC_Assistant_v3\Cache"
 CACHE_FILE = os.path.join(CACHE_DIR, "token_cache.bin")
 
 # ============ Đường dân local trên máy tính để lưu trữ cache ================
 # == đường dẫn lưu trữ các biểu mẫu ==
-REPORT_FORM_DIR = r"D:\RMC_Assistant_test\Report_Form_Cache"
+REPORT_FORM_DIR = r"D:\RMC_Assistant_v3\Report_Form_Cache"
+
+#Tạo thư mục lưu trữ file báo cáo cho các nhanh khác nhau
+AEONGMS_DIR = r"D:\RMC_Assistant_v3\Report_Form_Cache\AEONGMS" #<====== Thư mục dành riêng cho việc lưu trữ biểu mẫu của AEON GMS
+AEONMAXVALU_DIR = r"D:\RMC_Assistant_v3\Report_Form_Cache\MAXVALU" #<====== Thư mục dành riêng cho việc lưu trữ biểu mẫu của AEON MAXVALU
 
 # == đường dẫn lưu trữ các ghi chú ==
-NOTE_ARCHIVE_DIR = r"D:\RMC_Assistant_test\NOTE"
+NOTE_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\NOTE"
 
 # == đường dẫn lưu trữ các hình ảnh ==
-IMAGE_LAYOUT_ARCHIVE_DIR = r"D:\RMC_Assistant_test\IMAGE\LAYOUT"
-IMAGE_GATEWAY_ARCHIVE_DIR = r"D:\RMC_Assistant_test\IMAGE\GATEWAY"
-IMAGE_SENSOR_ARCHIVE_DIR = r"D:\RMC_Assistant_test\IMAGE\SENSOR"
-IMAGE_AL_ARCHIVE_DIR = r"D:\RMC_Assistant_test\IMAGE\ALARMPOINT"
+IMAGE_LAYOUT_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\IMAGE\LAYOUT"
+IMAGE_GATEWAY_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\IMAGE\GATEWAY"
+IMAGE_SENSOR_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\IMAGE\SENSOR"
+IMAGE_AL_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\IMAGE\ALARMPOINT"
 
 # == đường dẫn lưu trữ các tài liệu ==
-DOCUMENTARY_ARCHIVE_DIR = r"D:\RMC_Assistant_test\DOCUMENTARY"
+DOCUMENTARY_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\DOCUMENTARY"
 
 # == Đường dẫn METADATA ==
-METADATA_DIR = r"D:\RMC_Assistant_test\METADATA"
+METADATA_DIR = r"D:\RMC_Assistant_v3\METADATA"
 
 # === Khu vực tạo các thư mục lưu trữ nếu chưa có ===
 # Tạo thư mục lưu trữ cache
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-# Tạo thư lục lưu trữ biểu mẫu
+# Tạo thư lục lưu trữ biểu mẫu chung
 os.makedirs(REPORT_FORM_DIR, exist_ok=True)
+
+# Tạo thư lục lưu trữ biểu mẫu chung
+os.makedirs(AEONGMS_DIR, exist_ok=True) #<====== Thư mục dành riêng cho việc lưu trữ biểu mẫu của AEON GMS
+os.makedirs(AEONMAXVALU_DIR, exist_ok=True) #<====== Thư mục dành riêng cho việc lưu trữ biểu mẫu của AEON MAXVALU
 
 #Tạo thư mục lưu trữ ghi chú
 os.makedirs(NOTE_ARCHIVE_DIR, exist_ok=True)
@@ -792,30 +800,78 @@ def sync_files_from_onedrive(token, share_url, save_dir):
 # ==== Bắt đầu đồng bộ dữ liệu từ OneDrive ===================================================== 
 # ==== GET SAVE DIRECTORY FROM PATH =====================================================
 def get_save_dir_from_path(folder_path):
+
     path_upper = folder_path.upper()
+
+    # =====================================================
     # SENSOR
+    # =====================================================
     if "SENSOR" in path_upper:
         return IMAGE_SENSOR_ARCHIVE_DIR
+
+    # =====================================================
     # GATEWAY
+    # =====================================================
     elif "GATEWAY" in path_upper:
         return IMAGE_GATEWAY_ARCHIVE_DIR
+
+    # =====================================================
     # LAYOUT
+    # =====================================================
     elif "LAYOUT" in path_upper:
         return IMAGE_LAYOUT_ARCHIVE_DIR
+
+    # =====================================================
     # ALARM POINT
-    elif "ALARM POINT" in path_upper:
+    # =====================================================
+    elif (
+        "ALARM_POINT" in path_upper
+        or "ALARM_POINTS" in path_upper
+    ):
         return IMAGE_AL_ARCHIVE_DIR
-    # REPORT FORM
-    elif "REPORT FORM" in path_upper:
+
+    # =====================================================
+    # REPORT FORM - AEON GMS
+    # =====================================================
+    elif (
+        "REPORT_FORM/AEONGMS" in path_upper
+        or "REPORT FORM/AEONGMS" in path_upper
+        or "REPORT_FORM\\AEONGMS" in path_upper
+    ):
+        return AEONGMS_DIR
+
+    # =====================================================
+    # REPORT FORM - MAXVALU
+    # =====================================================
+    elif (
+        "REPORT_FORM/MAXVALU" in path_upper
+        or "REPORT FORM/MAXVALU" in path_upper
+        or "REPORT_FORM\\MAXVALU" in path_upper
+    ):
+        return AEONMAXVALU_DIR
+
+    # =====================================================
+    # REPORT FORM CHUNG
+    # =====================================================
+    elif (
+        "REPORT_FORM" in path_upper
+        or "REPORT FORM" in path_upper
+        or "HOTLINE_AND_CONFIRM_FORM" in path_upper
+    ):
         return REPORT_FORM_DIR
-    elif "HOTLINE_AND_CONFIRM_FORM" in path_upper:
-        return REPORT_FORM_DIR
+
+    # =====================================================
     # DOCUMENTARY
+    # =====================================================
     elif "DOCUMENTARY" in path_upper:
         return DOCUMENTARY_ARCHIVE_DIR
+
+    # =====================================================
     # NOTE
+    # =====================================================
     elif "NOTE" in path_upper:
         return NOTE_ARCHIVE_DIR
+
     return None
 
 # ==== AUTO SYNC FROM data_link.json =========================================================
@@ -1190,126 +1246,93 @@ def list_files_from_url(token, share_url):
 # BUILD DEVICE MAPPING FROM LOCAL FOLDER
 # =========================================================
 def build_device_mapping_from_local(report_dir):
-    """
-    Quét REPORT_FORM_DIR và build mapping:
-
-    {
-        "NVL": {
-            "FR&FC": "...",
-            "FAN": "..."
-        }
-    }
-
-    Đồng thời:
-    - Bỏ qua CONTACT_FORM
-    - Bỏ qua CONFIRM_FORM
-    ...
-    - Bỏ qua file không đúng cấu trúc
-    """
 
     mapping = {}
 
-    # =====================================================
-    # KEYWORD BỎ QUA
-    # =====================================================
     IGNORE_FILES = {
-
         "CONTACT_FORM",
         "CONFIRM_FORM",
         "NOTIFICATION_FORM"
-
     }
-    # ===================================================== 
-    # SCAN FILES
-    # =====================================================
-    for filename in os.listdir(report_dir):
 
-        file_path = os.path.join(
-            report_dir,
-            filename
-        )
+    # ==========================================
+    # QUÉT TOÀN BỘ THƯ MỤC CON
+    # ==========================================
+    for root, dirs, files in os.walk(report_dir):
 
-        # =================================================
-        # BỎ QUA FOLDER
-        # =================================================
-        if not os.path.isfile(file_path):
+        for filename in files:
 
-            continue
+            file_path = os.path.join(
+                root,
+                filename
+            )
 
-        # =================================================
-        # REMOVE EXTENSION
-        # =================================================
-        name_without_ext = os.path.splitext(
-            filename
-        )[0].strip()
+            # ==================================
+            # REMOVE EXTENSION
+            # ==================================
+            name_without_ext = os.path.splitext(
+                filename
+            )[0].strip()
 
-        upper_name = name_without_ext.upper()
+            upper_name = name_without_ext.upper()
 
-        # =================================================
-        # BỎ QUA CONTACT / CONFIRM
-        # =================================================
-        if upper_name in IGNORE_FILES:
+            # ==================================
+            # IGNORE
+            # ==================================
+            if upper_name in IGNORE_FILES:
+                continue
 
-            continue
+            # ==================================
+            # FORMAT:
+            # NVL_FR&FC
+            # ==================================
+            if "_" not in name_without_ext:
+                continue
 
-        # =================================================
-        # FORMAT:
-        # NVL_FR&FC
-        # =================================================
-        if "_" not in name_without_ext:
+            parts = name_without_ext.split(
+                "_",
+                1
+            )
 
-            continue
+            if len(parts) < 2:
+                continue
 
-        parts = name_without_ext.split(
-            "_",
-            1
-        )
+            area = parts[0].strip().upper()
 
-        # =================================================
-        # INVALID
-        # =================================================
-        if len(parts) < 2:
+            device = parts[1].strip().upper()
 
-            continue
+            if not area or not device:
+                continue
 
-        area = parts[0].strip().upper()
+            if area not in mapping:
+                mapping[area] = {}
 
-        device = parts[1].strip().upper()
-
-        # =================================================
-        # EMPTY
-        # =================================================
-        if not area or not device:
-
-            continue
-
-        # =================================================
-        # CREATE AREA
-        # =================================================
-        if area not in mapping:
-
-            mapping[area] = {}
-
-        # =================================================
-        # SAVE
-        # =================================================
-        mapping[area][device] = file_path
+            # ==================================
+            # SAVE PATH
+            # ==================================
+            mapping[area][device] = file_path
 
     return mapping
 
 def refresh_report_mapping():
+
     global REPORT_FORM_MAPPING
-    REPORT_FORM_MAPPING = build_device_mapping_from_local(
-        REPORT_FORM_DIR
+
+    REPORT_FORM_MAPPING = (
+        build_device_mapping_from_local(
+            REPORT_FORM_DIR
+        )
     )
 
     print("================================")
     print("REPORT_FORM_MAPPING REFRESHED")
-    print(json.dumps(
-        REPORT_FORM_MAPPING,
-        indent=4,
-        ensure_ascii=False
-    ))
+    print(
+        json.dumps(
+            REPORT_FORM_MAPPING,
+            indent=4,
+            ensure_ascii=False
+        )
+    )
     print("================================")
 
 # ==== CHỨC NĂNG HIỂN THỊ VĂN BẢN VÀ THỜI GIAN====
@@ -4311,7 +4334,7 @@ image_daviteq_button = tk.Button(left_button_frame, text="DAVITEQ", font=("Arial
                                  bg="#3fc4f3", fg="white", width=10, command=lambda: image_daviteq_action())
 image_daviteq_button.pack(pady=5)
 
-# ==== NÚT VAOF KHO DOCUMENTARY ====
+# ==== NÚT vào KHO DOCUMENTARY ====
 def rmc_drive_viewer_action():
     create_documentary_viewer(access_token, documentary_archive_url)
 
