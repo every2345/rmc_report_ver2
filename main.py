@@ -3989,63 +3989,104 @@ def create_documentary_viewer(token, share_url):
         tags = re.findall(r'\(([^)]+)\)', filename)
         return ", ".join(tags) if tags else "Khác"
 
-    def update_table(*args):
-        keyword = search_var.get().lower().strip()
-        current_mode = mode.get()
+    def update_table(event=None):
+        # 1. Lấy trực tiếp từ Entry thay vì StringVar để tránh độ trễ
+        keyword = entry_search.get().strip().lower()
 
-        tree.delete(*tree.get_children())
-        new_filtered = []
+        text_widget.config(state="normal")
+        text_widget.delete("1.0", tk.END)
 
-        if current_mode == "name":
-            new_filtered = [f for f in files if keyword in f["name"].lower()]
-        elif current_mode == "type":
-            new_filtered = [f for f in files if keyword in extract_tags(f["name"]).lower()]
-        elif current_mode == "number":
-            if keyword.isdigit():
-                idx = int(keyword)
-                if 1 <= idx <= len(files):
-                    new_filtered = [files[idx - 1]]
-            else:
-                return
-        else:
-            new_filtered = files.copy()
+        # 2. Thuật toán phân loại Tuple (Chắc chắn 100% đẩy lên đầu)
+        def get_sort_key(file_obj):
+            name = file_obj["name"].lower()
+            if not keyword:
+                return (0, name) # Trạng thái gốc: Xếp theo tên
+            
+            # Nếu tên chứa toàn bộ cụm từ khóa -> Đẩy lên Top 1 (hệ số -2)
+            if keyword in name:
+                return (-2, name.find(keyword), name)
+                
+            # Nếu tên chứa một phần từ khóa -> Đẩy lên Top 2 (hệ số -1)
+            words = keyword.split()
+            match_count = sum(1 for w in words if w in name)
+            if match_count > 0:
+                return (-1, -match_count, name)
+                
+            # Không liên quan -> Bỏ xuống cuối (hệ số 0)
+            return (0, 0, name)
 
-        for idx, f in enumerate(new_filtered, start=1):
-            tag_label = extract_tags(f["name"])
-            filepath = os.path.join(DOCUMENTARY_ARCHIVE_DIR, f["name"])
-
-            is_downloaded = os.path.exists(filepath)
-            status_text = "✅ Đã tải" if is_downloaded else "❌ Chưa tải"
-            tag = "downloaded" if is_downloaded else "not_downloaded"
-
-            tree.insert("", "end", values=(idx, tag_label, f["name"], "⇩", status_text), tags=(tag,))
-
+        # Sắp xếp danh sách với thuật toán mới
+        sorted_files = sorted(files, key=get_sort_key)
         filtered_files.clear()
-        filtered_files.extend(new_filtered)
+        filtered_files.extend(sorted_files)
+
+        # Chèn Header (Cố định ở dòng 1)
+        header = f"{'STT':<5}{'LOẠI':<15}{'TÊN FILE'}\n"
+        text_widget.insert(tk.END, header, "header")
+
+        # Chèn danh sách File
+        for idx, file in enumerate(sorted_files, start=1):
+            filename = file["name"]
+            tag_label = extract_tags(filename)
+            
+            filepath = os.path.join(DOCUMENTARY_ARCHIVE_DIR, filename)
+            downloaded = os.path.exists(filepath)
+            row_tag = "downloaded" if downloaded else "not_downloaded"
+
+            line = f"{idx:<5}{tag_label:<15}{filename}\n"
+            
+            # 3. Tính chính xác dòng hiện tại (Header = 1, file đầu tiên = 2, ...)
+            line_num = idx + 1
+            
+            # Chèn dòng và áp dụng màu nền
+            text_widget.insert(tk.END, line, row_tag)
+
+            # 4. Quét và Highlight từ khóa
+            if keyword:
+                words = keyword.split()
+                filename_lower = filename.lower()
+                prefix_len = len(f"{idx:<5}{tag_label:<15}")
+
+                for word in words:
+                    for match in re.finditer(re.escape(word), filename_lower):
+                        real_start = prefix_len + match.start()
+                        real_end = prefix_len + match.end()
+                        
+                        text_widget.tag_add(
+                            "highlight",
+                            f"{line_num}.{real_start}",
+                            f"{line_num}.{real_end}"
+                        )
+
+        # 5. ÉP THẺ HIGHLIGHT NỔI LÊN TRÊN CÙNG ĐỂ KHÔNG BỊ MÀU NỀN CHE MẤT
+        text_widget.tag_raise("highlight")
+        text_widget.config(state="disabled")
 
     def handle_download(event):
-        selected = tree.focus()
-        if not selected:
-            return
-        item = tree.item(selected)
-        index = int(item['values'][0]) - 1
-        file = filtered_files[index]
+        index = text_widget.index("@%d,%d" % (event.x, event.y))
+        line = int(index.split(".")[0])
 
-        # Gọi hàm download_file gốc (không sửa)
-        temp_path = download_file(token, file['id'], file['name'])
+        if line <= 1:
+            return
+
+        file_index = line - 2
+        if file_index < 0 or file_index >= len(filtered_files):
+            return
+
+        file = filtered_files[file_index]
+        temp_path = download_file(token, file["id"], file["name"])
+
         if not temp_path:
             messagebox.showerror("Lỗi", f"Tải file {file['name']} thất bại!")
             return
 
-        # Đích: thư mục DOCUMENTARY_ARCHIVE_DIR
-        final_path = os.path.join(DOCUMENTARY_ARCHIVE_DIR, file['name'])
-    
-        # Nếu file đã tồn tại thì ghi đè
+        final_path = os.path.join(DOCUMENTARY_ARCHIVE_DIR, file["name"])
         try:
-            shutil.move(temp_path, final_path)  # chuyển sang thư mục đích
-        except Exception as e:
-            shutil.copy2(temp_path, final_path)  # fallback copy
+            shutil.move(temp_path, final_path)
+        except:
+            shutil.copy2(temp_path, final_path)
             os.remove(temp_path)
+
         update_table()
 
     root = tk.Tk()
@@ -4067,45 +4108,38 @@ def create_documentary_viewer(token, share_url):
                                 command=lambda: os.startfile(DOCUMENTARY_ARCHIVE_DIR))
     btn_open_folder.pack(side="right", padx=5)
 
+    # Ràng buộc sự kiện nhấn phím và nhấn Enter
     entry_search.bind("<KeyRelease>", update_table)
-
-    # ==== Bộ lọc tìm kiếm ====
-    frame_filter = tk.Frame(root)
-    frame_filter.pack(pady=5)
-
-    mode = tk.StringVar(value="name")
-    tk.Radiobutton(frame_filter, text="🔍 Tìm theo tên", variable=mode, value="name", command=update_table).pack(side="left", padx=10)
-    tk.Radiobutton(frame_filter, text="🔍 Tìm theo loại", variable=mode, value="type", command=update_table).pack(side="left", padx=10)
-    tk.Radiobutton(frame_filter, text="🔍 Tìm theo stt", variable=mode, value="number", command=update_table).pack(side="left", padx=10)
+    entry_search.bind("<Return>", update_table)
 
     # ==== Bảng file ====
     frame_table = tk.Frame(root)
     frame_table.pack(pady=10, fill="both", expand=True)
 
-    columns = ("STT", "Loại", "Tên", "Tải", "Trạng thái")
-    tree = ttk.Treeview(frame_table, columns=columns, show="headings", height=20)
+    scrollbar = tk.Scrollbar(frame_table)
+    scrollbar.pack(side="right", fill="y")
 
-    tree.heading("STT", text="STT")
-    tree.column("STT", width=50, anchor="center")
+    text_widget = tk.Text(
+        frame_table,
+        wrap="none",
+        font=("Consolas", 10),
+        yscrollcommand=scrollbar.set
+    )
+    text_widget.pack(fill="both", expand=True)
+    scrollbar.config(command=text_widget.yview)
 
-    tree.heading("Loại", text="Loại")
-    tree.column("Loại", width=120, anchor="center")
+    text_widget.bind("<Double-Button-1>", handle_download)
 
-    tree.heading("Tên", text="Tên")
-    tree.column("Tên", width=400, anchor="w")
-
-    tree.heading("Tải", text="Tải về")
-    tree.column("Tải", width=80, anchor="center")
-
-    tree.heading("Trạng thái", text="Trạng thái")
-    tree.column("Trạng thái", width=100, anchor="center")
-
-    # Cấu hình màu thẻ
-    tree.tag_configure("downloaded", background="#d0f0c0")  # Xanh nhạt
-    tree.tag_configure("not_downloaded", background="#f7c6c7")  # Đỏ nhạt
-
-    tree.pack(fill="both", expand=True)
-    tree.bind("<Double-1>", handle_download)
+    # ==== Cấu hình màu sắc ====
+    text_widget.tag_config(
+        "highlight",
+        background="yellow",
+        foreground="black", # Đổi sang chữ đen trên nền vàng để dễ đọc hơn
+        font=("Consolas", 10, "bold")
+    )
+    text_widget.tag_config("downloaded", background="#d0f0c0")
+    text_widget.tag_config("not_downloaded", background="#f7c6c7")
+    text_widget.tag_config("header", font=("Consolas", 10, "bold"))
 
     update_table()
     root.mainloop()
