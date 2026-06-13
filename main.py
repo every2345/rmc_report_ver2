@@ -200,7 +200,6 @@ try:
         raise Exception("Đăng nhập thất bại")
 
     access_token = result["access_token"]
-
 except Exception as e:
 
     messagebox.showerror("Lỗi", str(e))
@@ -214,7 +213,6 @@ FIRST_RUN_FILE = os.path.join(
     CACHE_DIR,
     "first_run.json"
 )
-
 def is_first_run():
     return not os.path.exists(FIRST_RUN_FILE)
 
@@ -501,7 +499,6 @@ def build_data_link():
 
 # chỉ load cache local nếu đã tồn tại
 DATA_LINK = load_data_link_json()
-
 # ==== HELPER =========================================================
 def get_folder_url(folder_name):
     folder = DATA_LINK.get(folder_name)
@@ -535,7 +532,6 @@ def list_files_from_url(share_url):
 def download_file(token, share_url, file_id, filename, save_dir):
     os.makedirs(save_dir, exist_ok=True)
     cache_path = os.path.join(save_dir, filename)
-
     # =========================================================
     # ENCODE SHARE URL
     # =========================================================
@@ -677,11 +673,7 @@ def sync_files_from_onedrive(token, share_url, save_dir):
         )
         return
 
-    items = r.json().get(
-        "value",
-        []
-    )
-
+    items = r.json().get("value",[])
     files = [
         item for item in items
         if "file" in item
@@ -712,7 +704,6 @@ def sync_files_from_onedrive(token, share_url, save_dir):
 
         # ==== TÌM FILE LOCAL =====================================================
         candidate_paths = []
-
         # metadata path
         if (
             file_id in local_metadata
@@ -1093,7 +1084,6 @@ def update_timer():
         )
     except:
         countdown_job = None
-
 # =========================================================
 # UPDATE CLOCK
 # =========================================================
@@ -1124,7 +1114,6 @@ def update_clock():
     except tk.TclError:
         clock_running = False
         clock_after_id = None
-
 # =========================================================
 # START & STOP SYSTEM CLOCK
 # =========================================================
@@ -1144,7 +1133,6 @@ def stop_clock():
         except:
             pass
         clock_after_id = None
-
 # == Chức năng bắt đầu và reset đồng hồ đếm ngược ==
 # =========================================================
 # START TIMER
@@ -1252,72 +1240,51 @@ def list_files_from_url(token, share_url):
 # BUILD DEVICE MAPPING FROM LOCAL FOLDER
 # =========================================================
 def build_device_mapping_from_local(report_dir):
-
     mapping = {}
-
-    IGNORE_FILES = {
-        "CONTACT_FORM",
-        "CONFIRM_FORM",
-        "NOTIFICATION_FORM"
-    }
-
+    IGNORE_FILES = {"CONTACT_FORM","CONFIRM_FORM","NOTIFICATION_FORM"}
     # ==========================================
     # QUÉT TOÀN BỘ THƯ MỤC CON
     # ==========================================
     for root, dirs, files in os.walk(report_dir):
-
         for filename in files:
-
             file_path = os.path.join(
                 root,
                 filename
             )
-
             # ==================================
             # REMOVE EXTENSION
             # ==================================
             name_without_ext = os.path.splitext(
                 filename
             )[0].strip()
-
             upper_name = name_without_ext.upper()
-
             # ==================================
             # IGNORE
             # ==================================
             if upper_name in IGNORE_FILES:
                 continue
-
             # ==================================
             # FORMAT:
             # NVL_FR&FC
             # ==================================
             if "_" not in name_without_ext:
                 continue
-
             parts = name_without_ext.split(
                 "_",
                 1
             )
-
             if len(parts) < 2:
                 continue
-
             area = parts[0].strip().upper()
-
             device = parts[1].strip().upper()
-
             if not area or not device:
                 continue
-
             if area not in mapping:
                 mapping[area] = {}
-
             # ==================================
             # SAVE PATH
             # ==================================
             mapping[area][device] = file_path
-
     return mapping
 def refresh_report_mapping():
 
@@ -1347,7 +1314,6 @@ def refresh_report_mapping():
         )
     )
     print("================================")
-
 # ==== CHỨC NĂNG HIỂN THỊ VĂN BẢN VÀ THỜI GIAN====
 # =========================================================
 # SHOW TEXT FROM LOCAL FILE
@@ -1358,11 +1324,7 @@ def show_text_from_local(
     start_timer_flag=True
 ):
     try:
-        with open(
-            file_path,
-            'r',
-            encoding='utf-8',
-            errors='ignore'
+        with open(file_path,'r',encoding='utf-8',errors='ignore'
         ) as f:
             lines = f.readlines()
         # =============================================
@@ -1422,8 +1384,7 @@ REPORT_FORM_MAPPING = build_device_mapping_from_local(
 
 print("✅ REPORT FORM MAPPING:")
 print(json.dumps(
-    REPORT_FORM_MAPPING,
-    indent=4,
+    REPORT_FORM_MAPPING,indent=4,
     ensure_ascii=False
 ))
 
@@ -1448,16 +1409,11 @@ def set_active_child_button(btn):
     btn.config(bg="blue", fg="white")
     active_child_button = btn
 def create_list_block(parent, list_name, items, toggle_function, state):
+
     block_frame = tk.Frame(parent)
     block_frame.pack(pady=10, anchor='w')
 
-    list_button = tk.Button(
-        block_frame,
-        text=list_name,
-        font=("Arial", 14),
-        width=12,
-        command=lambda: [set_active_parent_button(list_button), toggle_function(state)]
-    )
+    list_button = tk.Button(block_frame,text=list_name,font=("Arial", 14),width=12,command=lambda: [set_active_parent_button(list_button), toggle_function(state)])
     list_button.pack(anchor='w')
     state["button"] = list_button
 
@@ -1465,164 +1421,104 @@ def create_list_block(parent, list_name, items, toggle_function, state):
 # =========================================================
 # KHUNG LƯU HAI NÚT BẤM
 # =========================================================
-source_frame = tk.Frame(
-    content_frame,
-    bg="white"
-)
-source_frame.pack(
-    fill="x",
-    pady=(5, 10)
-)
-
+source_frame = tk.Frame(content_frame,bg="white")
+source_frame.pack(fill="x",pady=(5, 10))
 # =========================================================
 # HÀM ĐỔI NGUỒN
 # =========================================================
-def switch_source(source_name):
+# ==== Chức năng đổi màu nút nguồn ===
+active_source_button = None
+def set_active_source_button(btn):
+    global active_source_button
+    try:
+        if (
+            active_source_button
+            and active_source_button.winfo_exists()
+            and active_source_button != btn
+        ):
 
+            active_source_button.config(bg="SystemButtonFace",fg="black"
+            )
+    except:
+        pass
+    active_source_button = btn
+    try:
+        active_source_button.config(bg="#2196F3",fg="white")
+    except:
+        pass
+# ==== Chức năng nút nguồn ===
+def switch_source(source_name, button):
     global CURRENT_SOURCE
     global REPORT_FORM_MAPPING
     global current_open_area
 
     CURRENT_SOURCE = source_name
-
     REPORT_FORM_MAPPING = \
         ALL_REPORT_MAPPINGS[source_name]
-
     current_open_area = None
-
+    # Đổi màu nút
+    set_active_source_button(button)
     create_area_buttons()
-
-    # xóa thiết bị đang hiển thị
+    # Xóa danh sách thiết bị cũ
     for widget in device_scrollable_frame.winfo_children():
         widget.destroy()
-
-    # reset ô tìm kiếm
+    # Reset tìm kiếm
     search_parent_var.set("")
     search_device_var.set("")
-btn_aeongms = tk.Button(
-    source_frame,
-    text="AEONGMS",
-    font=("Arial", 11, "bold"),
-    width=15,
-    command=lambda:
-        switch_source("AEONGMS")
-)
-btn_aeongms.pack(
-    side="left",
-    padx=5
-)
-btn_maxvalu = tk.Button(
-    source_frame,
-    text="MAXVALU",
-    font=("Arial", 11, "bold"),
-    width=15,
-    command=lambda:
-        switch_source("MAXVALU")
-)
-btn_maxvalu.pack(
-    side="left",
-    padx=5
-)
 
+btn_aeongms = tk.Button(source_frame,text="AEONGMS",font=("Arial", 11, "bold"),width=15)
+btn_aeongms.config(command=lambda:switch_source("AEONGMS",btn_aeongms))
+btn_aeongms.pack(side="left",padx=5)
+
+btn_maxvalu = tk.Button(source_frame,text="MAXVALU",font=("Arial", 11, "bold"),width=15)
+btn_maxvalu.config(command=lambda:switch_source("MAXVALU",btn_maxvalu))
+btn_maxvalu.pack(side="left",padx=5)
+
+root.after(100,lambda: switch_source("AEONGMS",btn_aeongms))
 # =========================================================
 # MAIN CONTAINER
 # =========================================================
-main_container = tk.Frame(
-    content_frame,
-    bg="white"
-)
-main_container.pack(
-    fill="both",
-    expand=True,
-    padx=10,
-    pady=10
-)
+main_container = tk.Frame(content_frame,bg="white")
+main_container.pack(fill="both",expand=True,padx=10,pady=10)
 
 # =========================================================
 # AREA CONTAINER
 # =========================================================
-area_container = tk.Frame(
-    main_container,
-    width=220,
-    bg="black"
-)
-area_container.pack(
-    side="left",
-    fill="y"
-)
+area_container = tk.Frame(main_container,width=220,bg="white")
+area_container.pack(side="left",fill="y")
 area_container.pack_propagate(False)
 
 # =========================================================
 # SITE SEARCH FRAME
 # =========================================================
-site_search_frame = tk.Frame(
-    area_container,
-    bg="white"
-)
-site_search_frame.pack(
-    fill="x",
-    padx=5,
-    pady=(5, 0)
-)
+site_search_frame = tk.Frame(area_container,bg="white")
+site_search_frame.pack(fill="x",padx=5,pady=(5, 0))
 
 # =========================================================
 # DEVICE CONTAINER
 # =========================================================
-device_container = tk.Frame(
-    main_container,
-    bg="white"
-)
-device_container.pack(
-    side="left",
-    fill="both",
-    expand=True,
-    padx=(10, 0)
-)
+device_container = tk.Frame(main_container,bg="white")
+device_container.pack(side="left",fill="both",expand=True,padx=(10, 0))
 
 # =========================================================
 # DEVICE SEARCH FRAME
 # =========================================================
-device_search_frame = tk.Frame(
-    device_container,
-    bg="white"
-)
-device_search_frame.pack(
-    fill="x",
-    padx=5,
-    pady=(5, 0)
-)
-
-
+device_search_frame = tk.Frame(device_container,bg="white")
+device_search_frame.pack(fill="x",padx=5,pady=(5, 0))
 
 # =========================================================
 # SEARCH AREA
 # =========================================================
 search_parent_var = tk.StringVar()
-search_parent_entry = tk.Entry(
-    site_search_frame,
-    textvariable=search_parent_var,
-    font=("Arial", 10)
-)
-search_parent_entry.pack(
-    fill="x",
-    pady=5
-)
+search_parent_entry = tk.Entry(site_search_frame,textvariable=search_parent_var,font=("Arial", 10))
+search_parent_entry.pack(fill="x",pady=5)
 
 # =========================================================
 # SEARCH DEVICE
 # =========================================================
 search_device_var = tk.StringVar()
-
-search_device_entry = tk.Entry(
-    device_search_frame,
-    textvariable=search_device_var,
-    font=("Arial", 10)
-)
-
-search_device_entry.pack(
-    fill="x",
-    pady=5
-)
+search_device_entry = tk.Entry(device_search_frame,textvariable=search_device_var,font=("Arial", 10))
+search_device_entry.pack(fill="x",pady=5)
 
 # =========================================================
 # AREA CANVAS
@@ -1736,7 +1632,6 @@ def filter_parent_buttons(event=None):
     area_canvas.configure(
         scrollregion=area_canvas.bbox("all")
     )
-# BƯỚC CỐT LÕI: Ràng buộc sự kiện KeyRelease vào đúng ô Entry đã tạo ở phần SEARCH AREA phía trên
 search_parent_entry.bind("<KeyRelease>", filter_parent_buttons)
 
 def filter_device_buttons(event=None):
@@ -1779,7 +1674,6 @@ def filter_device_buttons(event=None):
         scrollregion=device_canvas.bbox("all")
     )
 search_device_entry.bind("<KeyRelease>", filter_device_buttons)
-
 # =========================================================
 # SET ACTIVE PARENT BUTTON
 # =========================================================
@@ -1801,7 +1695,6 @@ def set_active_parent_button(btn):
             )
     except:
         pass
-
     # =====================================================
     # SET BUTTON MỚI
     # =====================================================
@@ -1925,21 +1818,18 @@ def show_sub_buttons(area_name, state, auto_select_first=False):
     
     # CỐT LÕI: Làm sạch danh sách thiết bị cũ để nạp danh sách thiết bị mới
     device_items.clear() 
-    
     devices = REPORT_FORM_MAPPING.get(area_name, {})
     first_child_btn = None
 
     for idx, (device_name, file_path) in enumerate(devices.items()):
         # Tạo block_frame cho từng thiết bị để hỗ trợ việc pack/pack_forget khi lọc
         block_frame = tk.Frame(device_scrollable_frame, bg="white")
-        
         btn = tk.Button(
             block_frame,
             text=device_name,
             font=("Arial", 11),
             height=2
         )
-        
         # Thiết lập tập lệnh xử lý sự kiện click nút
         if "NO_ERROR" in device_name.upper():
             cmd = lambda p=file_path, b=btn: [
@@ -1957,11 +1847,9 @@ def show_sub_buttons(area_name, state, auto_select_first=False):
         btn.config(command=cmd)
         btn.pack(fill="x", padx=5, pady=3)
         block_frame.pack(fill="x", padx=5, pady=3)
-        
         # Lưu trữ trạng thái vào hệ thống
         state["buttons"].append(btn)
         device_items.append((block_frame, btn)) # Đẩy vào mảng tracking lọc dữ liệu
-        
         if idx == 0:
             first_child_btn = btn
 
@@ -2073,28 +1961,34 @@ def make_cmd(fid, b, fname, is_no_error=False):
 # =========================================================
 # CREATE CONTACT WINDOW
 # =========================================================
-def create_new_window_contact(
-    title,content=None
-):
+def create_new_window_contact(title,content=None):
     # =====================================================
     # WINDOW
     # =====================================================
     new_window = tk.Toplevel(root)
     new_window.title(title)
     new_window.geometry("600x450")
-
     new_window.configure(bg="white")
-
     new_window.transient(root)
-
     new_window.grab_set()
 
     # =====================================================
     # STATE
     # =====================================================
     confirm_var = tk.StringVar(
-        value="not_confirmed"
+    master=new_window,
+    value="not_confirmed"
     )
+
+    def on_confirm_change(*args):
+        print("Selected:", confirm_var.get())
+        toggle_entry_fields()
+
+    confirm_var.trace_add(
+        "write",
+        on_confirm_change
+    )
+
 
     CONTACT_SAMPLE_KEYWORD = "CONTACT_FORM"
 
@@ -2103,20 +1997,15 @@ def create_new_window_contact(
     # =====================================================
     confirm_frame = tk.LabelFrame(
         new_window,
-
         text="Tình trạng confirm",
-
         font=("Arial", 12, "bold"),
-
         bg="white"
     )
-
     confirm_frame.pack(
         padx=20,
         pady=10,
         fill="x"
     )
-
     # =====================================================
     # FORM FRAME
     # =====================================================
@@ -2124,23 +2013,18 @@ def create_new_window_contact(
         new_window,
         bg="white"
     )
-
     form_frame.pack(
         padx=20,
         pady=10,
         fill="x"
     )
-
     # =====================================================
     # DEPARTMENT
     # =====================================================
     tk.Label(
         form_frame,
-
         text="Tên bộ phận:",
-
         font=("Arial", 11),
-
         bg="white"
     ).grid(
         row=0,
@@ -2160,17 +2044,13 @@ def create_new_window_contact(
         pady=5,
         sticky="ew"
     )
-
     # =====================================================
     # DEVICE
     # =====================================================
     tk.Label(
         form_frame,
-
         text="Tên thiết bị:",
-
         font=("Arial", 11),
-
         bg="white"
     ).grid(
         row=1,
@@ -2196,11 +2076,8 @@ def create_new_window_contact(
     # =====================================================
     tk.Label(
         form_frame,
-
         text="Tình trạng:",
-
         font=("Arial", 11),
-
         bg="white"
     ).grid(
         row=2,
@@ -2208,30 +2085,24 @@ def create_new_window_contact(
         sticky="w",
         pady=5
     )
-
     status_entry = ttk.Combobox(
-
         form_frame,
-
         font=("Arial", 11),
-
         state="readonly",
-
         values=[
             "Đang xử lý",
             "Đã xử lý",
             "Chờ xử lý",
+            "Chờ thông tin",
             "Không chọn"
         ]
     )
-
     status_entry.grid(
         row=2,
         column=1,
         pady=5,
         sticky="ew"
     )
-
     status_entry.current(3)
 
     # =====================================================
@@ -2254,11 +2125,8 @@ def create_new_window_contact(
 
     desc_entry = tk.Text(
         form_frame,
-
         font=("Arial", 11),
-
         height=6,
-
         width=40
     )
 
@@ -2278,11 +2146,9 @@ def create_new_window_contact(
     # =====================================================
 
     def toggle_entry_fields():
-
         is_not_confirmed = (
             confirm_var.get() == "not_confirmed"
         )
-
         # =================================================
         # ENABLE
         # =================================================
@@ -2309,67 +2175,47 @@ def create_new_window_contact(
         # DISABLE
         # =================================================
         else:
-
             dept_entry.config(
                 state="disabled"
             )
-
             device_entry.config(
                 state="disabled"
             )
-
             status_entry.config(
                 state="disabled"
             )
-
             desc_entry.config(
                 state="disabled"
             )
-
     new_window.update_idletasks()
-
     # =====================================================
     # RADIO BUTTONS
     # =====================================================
-    tk.Radiobutton(
+    rb_confirm = tk.Radiobutton(
+    confirm_frame,
+    text="Đã confirm",
+    variable=confirm_var,
+    value="confirmed",
+    bg="white",
+    font=("Arial", 11)
+    )
 
+    rb_not_confirm = tk.Radiobutton(
         confirm_frame,
-
-        text="Đã confirm",
-
+        text="Chưa confirm",
         variable=confirm_var,
-
-        value="confirmed",
-
-        command=toggle_entry_fields,
-
+        value="not_confirmed",
         bg="white",
-
         font=("Arial", 11)
+    )
 
-    ).pack(
+    rb_confirm.pack(
         anchor="w",
         padx=10,
         pady=2
     )
 
-    tk.Radiobutton(
-
-        confirm_frame,
-
-        text="Chưa confirm",
-
-        variable=confirm_var,
-
-        value="not_confirmed",
-
-        command=toggle_entry_fields,
-
-        bg="white",
-
-        font=("Arial", 11)
-
-    ).pack(
+    rb_not_confirm.pack(
         anchor="w",
         padx=10,
         pady=2
@@ -2384,7 +2230,6 @@ def create_new_window_contact(
     # HANDLE OK
     # =====================================================
     def handle_ok():
-
         # =============================================
         # CONFIRMED
         # =============================================
@@ -2414,7 +2259,6 @@ def create_new_window_contact(
             # FIND TEMPLATE
             # =========================================
             target_file = None
-
             for filename in os.listdir(
                 REPORT_FORM_DIR
             ):
@@ -2428,14 +2272,12 @@ def create_new_window_contact(
                         REPORT_FORM_DIR,
                         filename
                     )
-
                     break
 
             # =========================================
             # NOT FOUND
             # =========================================
             if not target_file:
-
                 raise FileNotFoundError(
                     f"Không tìm thấy "
                     f"'{CONTACT_SAMPLE_KEYWORD}'"
@@ -2445,53 +2287,20 @@ def create_new_window_contact(
             # READ TEMPLATE
             # =========================================
             with open(
-
-                target_file,
-
-                "r",
-
-                encoding="utf-8",
-
-                errors="ignore"
-
+                target_file,"r",encoding="utf-8",errors="ignore"
             ) as f:
-
                 lines = f.readlines()
-
             # =========================================
             # REPLACE PLACEHOLDER
             # =========================================
             replaced_lines = []
-
             for line in lines:
-
                 original_line = line
-
-                line = line.replace(
-                    "[title]",
-                    dept
-                )
-
-                line = line.replace(
-                    "[department]",
-                    dept
-                )
-
-                line = line.replace(
-                    "[device]",
-                    device
-                )
-
-                line = line.replace(
-                    "[status]",
-                    status_val
-                )
-
-                line = line.replace(
-                    "[description]",
-                    desc
-                )
-
+                line = line.replace("[title]",dept)
+                line = line.replace("[department]",dept)
+                line = line.replace("[device]",device)
+                line = line.replace("[status]",status_val)
+                line = line.replace("[description]",desc)
                 stripped_line = line.strip()
 
                 # =====================================
@@ -2621,22 +2430,26 @@ def create_new_window_contact(
 # == CỬA SỔ STATUS
 # =========================================================
 def create_new_window_status(title, content=None):
-
     new_window = tk.Toplevel(root)
-
     new_window.title(title)
-
     new_window.geometry("600x500")
-
     new_window.configure(bg="white")
-
     # =====================================================
     # CONFIRM STATE
     # =====================================================
     confirm_var = tk.StringVar(
+        master=new_window,
         value="not_confirmed"
     )
 
+    def on_confirm_change(*args):
+        print("Selected:", confirm_var.get())
+        toggle_entry_fields()
+
+    confirm_var.trace_add(
+        "write",
+        on_confirm_change
+    )
     # =====================================================
     # CONFIRM FRAME
     # =====================================================
@@ -2927,25 +2740,31 @@ def create_new_window_status(title, content=None):
     # =====================================================
     # RADIO BUTTON
     # =====================================================
-    tk.Radiobutton(
+    rb_confirm = tk.Radiobutton(
+    confirm_frame,
+    text="Đã confirm",
+    variable=confirm_var,
+    value="confirmed",
+    bg="white",
+    font=("Arial", 11)
+    )
+
+    rb_not_confirm = tk.Radiobutton(
         confirm_frame,
-        text="Đã confirm",
+        text="Chưa confirm",
         variable=confirm_var,
-        value="confirmed",
-        command=toggle_entry_fields
-    ).pack(
+        value="not_confirmed",
+        bg="white",
+        font=("Arial", 11)
+    )
+
+    rb_confirm.pack(
         anchor="w",
         padx=10,
         pady=2
     )
 
-    tk.Radiobutton(
-        confirm_frame,
-        text="Chưa confirm",
-        variable=confirm_var,
-        value="not_confirmed",
-        command=toggle_entry_fields
-    ).pack(
+    rb_not_confirm.pack(
         anchor="w",
         padx=10,
         pady=2
@@ -4611,3 +4430,4 @@ show_startup_window()
 
 # ==== CHẠY ỨNG DỤNG ====
 root.mainloop()
+
