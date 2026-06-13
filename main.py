@@ -89,6 +89,13 @@ os.makedirs(DOCUMENTARY_ARCHIVE_DIR, exist_ok=True)
 # Tạo thư mục METADATA
 os.makedirs(METADATA_DIR, exist_ok=True)
 
+#Biến lưu trữ nguồn báo cáo hiện tại đang xử lý (mặc định là AEON GMS)
+CURRENT_SOURCE = "AEONGMS"
+ALL_REPORT_MAPPINGS = {
+    "AEONGMS": {},
+    "MAXVALU": {}
+}
+
 # ==== Đăng nhập, tải file và xử lý OneDrive bằng Azure ===========================================================================
 # == Cửa sổ đăng nhập Azure AD trên thiết bị mới ==
 def show_device_login(flow):
@@ -1127,7 +1134,6 @@ def start_clock():
         return
     clock_running = True
     update_clock()
-
 def stop_clock():
     global clock_running
     global clock_after_id
@@ -1313,16 +1319,23 @@ def build_device_mapping_from_local(report_dir):
             mapping[area][device] = file_path
 
     return mapping
-
 def refresh_report_mapping():
 
+    global ALL_REPORT_MAPPINGS
     global REPORT_FORM_MAPPING
 
-    REPORT_FORM_MAPPING = (
+    ALL_REPORT_MAPPINGS["AEONGMS"] = \
         build_device_mapping_from_local(
-            REPORT_FORM_DIR
+            AEONGMS_DIR
         )
-    )
+
+    ALL_REPORT_MAPPINGS["MAXVALU"] = \
+        build_device_mapping_from_local(
+            AEONMAXVALU_DIR
+        )
+
+    REPORT_FORM_MAPPING = \
+        ALL_REPORT_MAPPINGS[CURRENT_SOURCE]
 
     print("================================")
     print("REPORT_FORM_MAPPING REFRESHED")
@@ -1426,7 +1439,6 @@ def set_active_parent_button(btn):
     # Đổi màu nút cha mới
     btn.config(bg="green", fg="white")
     active_parent_button = btn
-
 def set_active_child_button(btn):
     global active_child_button
     # Reset nút con cũ
@@ -1435,7 +1447,6 @@ def set_active_child_button(btn):
     # Đổi màu nút con mới
     btn.config(bg="blue", fg="white")
     active_child_button = btn
-
 def create_list_block(parent, list_name, items, toggle_function, state):
     block_frame = tk.Frame(parent)
     block_frame.pack(pady=10, anchor='w')
@@ -1452,13 +1463,74 @@ def create_list_block(parent, list_name, items, toggle_function, state):
 
 # ==== HÀM BẬT TẮT DANH SÁCH ====
 # =========================================================
+# KHUNG LƯU HAI NÚT BẤM
+# =========================================================
+source_frame = tk.Frame(
+    content_frame,
+    bg="white"
+)
+source_frame.pack(
+    fill="x",
+    pady=(5, 10)
+)
+
+# =========================================================
+# HÀM ĐỔI NGUỒN
+# =========================================================
+def switch_source(source_name):
+
+    global CURRENT_SOURCE
+    global REPORT_FORM_MAPPING
+    global current_open_area
+
+    CURRENT_SOURCE = source_name
+
+    REPORT_FORM_MAPPING = \
+        ALL_REPORT_MAPPINGS[source_name]
+
+    current_open_area = None
+
+    create_area_buttons()
+
+    # xóa thiết bị đang hiển thị
+    for widget in device_scrollable_frame.winfo_children():
+        widget.destroy()
+
+    # reset ô tìm kiếm
+    search_parent_var.set("")
+    search_device_var.set("")
+btn_aeongms = tk.Button(
+    source_frame,
+    text="AEONGMS",
+    font=("Arial", 11, "bold"),
+    width=15,
+    command=lambda:
+        switch_source("AEONGMS")
+)
+btn_aeongms.pack(
+    side="left",
+    padx=5
+)
+btn_maxvalu = tk.Button(
+    source_frame,
+    text="MAXVALU",
+    font=("Arial", 11, "bold"),
+    width=15,
+    command=lambda:
+        switch_source("MAXVALU")
+)
+btn_maxvalu.pack(
+    side="left",
+    padx=5
+)
+
+# =========================================================
 # MAIN CONTAINER
 # =========================================================
 main_container = tk.Frame(
     content_frame,
     bg="white"
 )
-
 main_container.pack(
     fill="both",
     expand=True,
@@ -1474,29 +1546,24 @@ area_container = tk.Frame(
     width=220,
     bg="black"
 )
-
 area_container.pack(
     side="left",
     fill="y"
 )
-
 area_container.pack_propagate(False)
 
 # =========================================================
 # SITE SEARCH FRAME
 # =========================================================
-
 site_search_frame = tk.Frame(
     area_container,
     bg="white"
 )
-
 site_search_frame.pack(
     fill="x",
     padx=5,
     pady=(5, 0)
 )
-
 
 # =========================================================
 # DEVICE CONTAINER
@@ -1515,29 +1582,27 @@ device_container.pack(
 # =========================================================
 # DEVICE SEARCH FRAME
 # =========================================================
-
 device_search_frame = tk.Frame(
     device_container,
     bg="white"
 )
-
 device_search_frame.pack(
     fill="x",
     padx=5,
     pady=(5, 0)
 )
 
+
+
 # =========================================================
 # SEARCH AREA
 # =========================================================
 search_parent_var = tk.StringVar()
-
 search_parent_entry = tk.Entry(
     site_search_frame,
     textvariable=search_parent_var,
     font=("Arial", 10)
 )
-
 search_parent_entry.pack(
     fill="x",
     pady=5
@@ -1613,6 +1678,7 @@ device_canvas.create_window((0, 0),window=device_scrollable_frame,anchor="nw")
 device_canvas.configure(yscrollcommand=device_scrollbar.set)
 device_canvas.pack(side="left",fill="both",expand=True)
 device_scrollbar.pack(side="right",fill="y")
+
 # =========================================================
 # GLOBAL STATES
 # =========================================================
@@ -1620,13 +1686,13 @@ area_states = {}
 current_open_area = None
 active_parent_button = None
 active_child_button = None
+
 # đang mở khu vực nào
 current_open_area = None
 parent_items = []  # list of (block_frame, button) tuples for area buttons
 device_items = []  # list of (block_frame, button) tuples for device buttons
 
 # ==== THANH TÌM KIẾM CHO DANH SÁCH CHA (area buttons) ====
-
 # =========================================================
 # HÀM XỬ LÝ LỌC VÀ ĐẨY NÚT KHU VỰC LÊN ĐẦU
 # =========================================================
