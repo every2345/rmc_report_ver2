@@ -2426,7 +2426,6 @@ def create_new_window_contact(title,content=None):
     ok_button.pack(
         pady=15
     )
-
 # == CỬA SỔ STATUS
 # =========================================================
 def create_new_window_status(title, content=None):
@@ -3030,19 +3029,32 @@ def create_new_window_status(title, content=None):
     ok_button.pack(
         pady=10
     )
-
 # == Cửa sổ note ==
+schedule_running = False
+schedule_after_id = None
+
 def create_new_window_note():
     # Thư mục lưu dữ liệu
     DATA_DIR = NOTE_ARCHIVE_DIR
     os.makedirs(DATA_DIR, exist_ok=True)
-
     # === Luồng kế hoạch ===
     def run_schedule():
-        while True:
+        global schedule_after_id
+        try:
+            if not root.winfo_exists():
+                return
             schedule.run_pending()
-            time.sleep(1)
-    threading.Thread(target=run_schedule, daemon=True).start()
+            schedule_after_id = root.after(
+                1000,
+                run_schedule
+            )
+        except tk.TclError:
+            schedule_after_id = None
+
+    global schedule_running
+    if not schedule_running:
+        schedule_running = True
+        run_schedule()
 
     # === Tạo Note ===
     def get_next_stt():
@@ -3071,6 +3083,7 @@ def create_new_window_note():
 
     def schedule_reminder(keyword, content, times, days, months, mode, file_path=None, delete_mode="delete"):
         for t in times:
+            print("Reminder fired:",keyword,datetime.datetime.now())
             def job(t=t):
                 now = datetime.datetime.now()
                 if str(now.day) in days and str(now.month) in months:
@@ -3092,14 +3105,12 @@ def create_new_window_note():
                                         data["done"] = True
                                         with open(file_path, "w", encoding="utf-8") as f:
                                             json.dump(data, f, ensure_ascii=False, indent=4)
-
                             except Exception as e:
                                 print(f"Lỗi xử lý file {file_path}: {e}")
-
-                    try:
-                        note_window.after(0, show_popup)
-                    except Exception as e:
-                        print(f"Lỗi gọi after: {e}")
+                    root.after(
+                        0,
+                        show_popup
+                    )
 
                     if mode == "1 lần":
                         return schedule.CancelJob
@@ -3231,13 +3242,13 @@ def create_new_window_note():
                             all_data.append(data)
                         elif isinstance(data, list):
                             for item in data:
-                                if isinstance(data, dict) and "keyword" in data:
-                                    data["_file"] = file_path
-                                    if "delete_mode" not in data:
-                                        data["delete_mode"] = "delete"   # mặc định là xóa sau khi đã nhắc 1 lần 
-                                    if "done" not in data:
-                                        data["done"] = False             # Không xóa sau khi đã nhắc 1 lần 
-                                    all_data.append(data)
+                                if isinstance(item, dict) and "keyword" in item:
+                                    item["_file"] = file_path
+                                    if "delete_mode" not in item:
+                                        item["delete_mode"] = "delete"
+                                    if "done" not in item:
+                                        item["done"] = False
+                                    all_data.append(item)
                 except Exception as e:
                     print(f"Lỗi đọc {filename}: {e}")
         return all_data
@@ -3331,8 +3342,13 @@ def create_new_window_note():
         display_data(full_data)
         messagebox.showinfo("Thành công", f"Đã xóa {len(to_delete)} ghi chú.", parent=note_window)
 
+    if schedule_after_id:
+        root.after_cancel(schedule_after_id)
+
     # === Giao diện chính ===
     note_window = tk.Toplevel()
+    run_schedule()
+
     note_window.title("Trình quản lý ghi chú định kỳ")
     note_window.geometry("1000x500")
 
@@ -3490,6 +3506,8 @@ def create_new_window_note():
 
     # ==== Lên lịch lại tất cả ghi chú đã lưu ====
     for reminder in load_all_json_files():
+        if reminder.get("done", False):
+            continue
         schedule_reminder(
             reminder["keyword"],
             reminder["content"],
@@ -3497,13 +3515,11 @@ def create_new_window_note():
             reminder["days"],
             reminder["months"],
             reminder["mode"],
-            reminder.get("_file"),                  # thêm đường dẫn file
-            reminder.get("delete_mode", "delete")   # truyền delete_mode (mặc định delete nếu không có)
+            reminder.get("_file"),
+            reminder.get("delete_mode", "delete")
         )
-
 # == Cửa sổ hình ảnh Daviteq ==
 def create_new_window_image_daviteq(title):
-
     # =====================================================
     # BUILD IMAGE MAPPING FROM LOCAL
     # =====================================================
@@ -3834,159 +3850,91 @@ def create_new_window_image_daviteq(title):
         bg="#e8e8e8"
     )
 
-    sub_button_frame.pack(
-        side="left",
-        fill="y"
+    sub_button_frame.pack(side="left",fill="y"
     )
-
     # =====================================================
     # RIGHT FRAME
     # =====================================================
-    right_frame = tk.Frame(
-        new_window,
-        bg="white"
-    )
-
-    right_frame.pack(
-        side="right",
-        fill="both",
-        expand=True
-    )
-
+    right_frame = tk.Frame(new_window,bg="white")
+    right_frame.pack(side="right",fill="both",expand=True)
     # =====================================================
     # SCROLLABLE CANVAS
     # =====================================================
-    canvas = tk.Canvas(
-        right_frame,
-        bg="white"
-    )
-
-    scrollbar = tk.Scrollbar(
-        right_frame,
-        orient="vertical",
-        command=canvas.yview
-    )
-
-    scrollable_frame = tk.Frame(
-        canvas,
-        bg="white"
-    )
-
+    canvas = tk.Canvas(right_frame,bg="white")
+    scrollbar = tk.Scrollbar(right_frame,orient="vertical",command=canvas.yview)
+    scrollable_frame = tk.Frame(canvas,bg="white")
     scrollable_frame.bind(
         "<Configure>",
         lambda e: canvas.configure(
             scrollregion=canvas.bbox("all")
         )
     )
-
     canvas.create_window(
         (0, 0),
         window=scrollable_frame,
         anchor="nw"
     )
-
-    canvas.configure(
-        yscrollcommand=scrollbar.set
-    )
-
-    canvas.pack(
-        side="left",
-        fill="both",
-        expand=True
-    )
-
-    scrollbar.pack(
-        side="right",
-        fill="y"
-    )
-
+    canvas.configure(yscrollcommand=scrollbar.set)
+    canvas.pack(side="left",fill="both",expand=True)
+    scrollbar.pack(side="right",fill="y")
     image_frame = scrollable_frame
-
     # =====================================================
     # VARIABLES
     # =====================================================
     category_frames = {}
-
     parent_buttons = {}
-
     selected_sub_button = None
-
     selected_parent_button = None
-
     max_columns = 4
-
     # =====================================================
     # LOAD LOCAL IMAGE DATA
     # =====================================================
     category_images = build_image_mapping()
-
     print("✅ IMAGE MAPPING:")
     print(json.dumps(
         category_images,
         indent=4,
         ensure_ascii=False
     ))
-
     # =====================================================
     # BUILD GUI DYNAMIC
     # =====================================================
     for category_name, areas in category_images.items():
-
         # =============================================
         # PARENT BUTTON
         # =============================================
         parent_btn = tk.Button(
             left_frame,
             text=category_name,
-            width=15,
-            pady=5,
-            bg="white",
-            fg="black",
+            width=15,pady=5,
+            bg="white",fg="black",
             font=("Arial", 10, "bold"),
             activebackground="#e0e0e0",
             command=lambda c=category_name:
                 toggle_sub_buttons(c)
         )
-
-        parent_btn.pack(
-            pady=(10, 0)
-        )
-
+        parent_btn.pack(pady=(10, 0))
         parent_buttons[category_name] = parent_btn
-
         # =============================================
         # SUB FRAME
         # =============================================
-        sub_frame = tk.Frame(
-            sub_button_frame,
-            bg="#e8e8e8"
-        )
-
+        sub_frame = tk.Frame(sub_button_frame,bg="#e8e8e8")
         category_frames[category_name] = sub_frame
-
         # =============================================
         # AREA BUTTONS
         # =============================================
         for area_name, image_list in areas.items():
-
             sub_btn = tk.Button(
                 sub_frame,
                 text=area_name,
-                width=15,
-                pady=5,
+                width=15,pady=5,
                 relief="raised",
-                bg="white",
-                fg="black",
+                bg="white",fg="black",
                 font=("Arial", 10, "bold"),
-                bd=1,
-                activebackground="#e0e0e0"
+                bd=1,activebackground="#e0e0e0"
             )
 
-            sub_btn.pack(
-                padx=10,
-                pady=3
-            )
-
+            sub_btn.pack(padx=10,pady=3)
             sub_btn.config(
                 command=lambda b=sub_btn,
                                il=image_list:
@@ -4226,9 +4174,7 @@ def rmc_drive_viewer_action():
 rmc_drive_viewer_button = tk.Button(
     left_button_frame,
     text="Document",
-    font=("Arial", 12, "bold"),
-    bg="#5A780B", fg="white",
-    width=10,
+    font=("Arial", 12, "bold"),bg="#5A780B", fg="white",width=10,
     command=rmc_drive_viewer_action
 )
 rmc_drive_viewer_button.pack(pady=5)
@@ -4276,7 +4222,7 @@ def show_startup_window():
         progress = ttk.Progressbar(
             startup,
             mode="indeterminate",
-            length=300
+length=300
         )
 
         progress.pack(pady=15)
@@ -4385,8 +4331,7 @@ def show_startup_window():
     status_label = tk.Label(
         startup,
         text="Chọn chế độ khởi động",
-        font=("Arial", 11),
-        fg="blue"
+        font=("Arial", 11),fg="blue"
     )
     status_label.pack(pady=(0, 20))
     # =========================
@@ -4399,12 +4344,9 @@ def show_startup_window():
     # =========================
     tk.Button(
         btn_frame,
-        text="▶ Vào chương trình ngay",
+        text="▶ Vào chương trình",
         font=("Arial", 11, "bold"),
-        width=25,
-        height=2,
-        bg="#4CAF50",
-        fg="white",
+        width=25,height=2,bg="#4CAF50",fg="white",
         command=lambda: skip_sync(startup)
     ).pack(pady=10)
     # =========================
@@ -4412,12 +4354,9 @@ def show_startup_window():
     # =========================
     tk.Button(
         btn_frame,
-        text="🔄 Đồng bộ dữ liệu rồi vào",
+        text="🔄 Đồng bộ dữ liệu",
         font=("Arial", 11, "bold"),
-        width=25,
-        height=2,
-        bg="#2196F3",
-        fg="white",
+        width=25,height=2,bg="#2196F3",fg="white",
         command=lambda:
             threading.Thread(
                 target=run_sync_and_launch,
