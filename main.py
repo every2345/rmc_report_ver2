@@ -61,10 +61,20 @@ NOTE_ARCHIVE_DIR = os.path.join(APP_ROOT, "NOTE")
 # IMAGE
 # ==========================================================
 IMAGE_ROOT_DIR = os.path.join(APP_ROOT, "IMAGE")
-IMAGE_LAYOUT_ARCHIVE_DIR = os.path.join(IMAGE_ROOT_DIR,"LAYOUT")
-IMAGE_GATEWAY_ARCHIVE_DIR = os.path.join(IMAGE_ROOT_DIR,"GATEWAY")
-IMAGE_SENSOR_ARCHIVE_DIR = os.path.join(IMAGE_ROOT_DIR,"SENSOR")
-IMAGE_AL_ARCHIVE_DIR = os.path.join(IMAGE_ROOT_DIR,"ALARMPOINT")
+AEONGMSIMG_DIR = os.path.join(IMAGE_ROOT_DIR, "AEONGMS")
+MAXVALUIMG_DIR = os.path.join(IMAGE_ROOT_DIR, "MAXVALU")
+
+# AEON GMS IMG ARCHIVE
+AEONGMS_IMAGE_LAYOUT_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "LAYOUT")
+AEONGMS_IMAGE_GATEWAY_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "GATEWAY")
+AEONGMS_IMAGE_SENSOR_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "SENSOR")
+AEONGMS_IMAGE_AL_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "ALARM_POINTS") # Đã sửa thành ALARM_POINTS
+
+# AEON MAXVALU IMG ARCHIVE
+MAXVALU_IMAGE_LAYOUT_ARCHIVE_DIR = os.path.join(MAXVALUIMG_DIR, "LAYOUT")
+MAXVALU_IMAGE_GATEWAY_ARCHIVE_DIR = os.path.join(MAXVALUIMG_DIR, "GATEWAY")
+MAXVALU_IMAGE_SENSOR_ARCHIVE_DIR = os.path.join(MAXVALUIMG_DIR, "SENSOR")
+MAXVALU_IMAGE_AL_ARCHIVE_DIR = os.path.join(MAXVALUIMG_DIR, "ALARM_POINTS")
 # ==========================================================
 # DOCUMENTARY
 # ==========================================================
@@ -84,10 +94,21 @@ folders = [
     AEONMAXVALU_DIR,
     NOTE_ARCHIVE_DIR,
     IMAGE_ROOT_DIR,
-    IMAGE_LAYOUT_ARCHIVE_DIR,
-    IMAGE_GATEWAY_ARCHIVE_DIR,
-    IMAGE_SENSOR_ARCHIVE_DIR,
-    IMAGE_AL_ARCHIVE_DIR,
+    
+    # Nhánh thư mục AEON GMS
+    AEONGMSIMG_DIR,
+    AEONGMS_IMAGE_LAYOUT_ARCHIVE_DIR,
+    AEONGMS_IMAGE_GATEWAY_ARCHIVE_DIR,
+    AEONGMS_IMAGE_SENSOR_ARCHIVE_DIR,
+    AEONGMS_IMAGE_AL_ARCHIVE_DIR,
+
+    # Nhánh thư mục MAXVALU
+    MAXVALUIMG_DIR,
+    MAXVALU_IMAGE_LAYOUT_ARCHIVE_DIR,
+    MAXVALU_IMAGE_GATEWAY_ARCHIVE_DIR,
+    MAXVALU_IMAGE_SENSOR_ARCHIVE_DIR,
+    MAXVALU_IMAGE_AL_ARCHIVE_DIR,
+
     DOCUMENTARY_ARCHIVE_DIR,
     METADATA_DIR
 ]
@@ -223,7 +244,6 @@ FIRST_RUN_FILE = os.path.join(
 )
 def is_first_run():
     return not os.path.exists(FIRST_RUN_FILE)
-
 def create_first_run_flag():
     now = datetime.datetime.now().strftime(
         "%Y-%m-%d %H:%M:%S"
@@ -257,7 +277,6 @@ def create_first_run_flag():
         )
 
     print("✅ Đã tạo first_run.flag")
-
 def first_time_auto_sync():
     try:
         print("🚀 FIRST RUN DETECTED")
@@ -793,7 +812,7 @@ def sync_files_from_onedrive(token, share_url, save_dir):
         if need_download:
             filepath = download_file(token,share_url,file_id,file_name,save_dir)
             if filepath:
-                print(f"⬇️ Downloaded: {file_name}")
+                print(f"⬇️ Saved: {file_name}")
                 local_metadata[file_id] = {
                     "name": file_name,
                     "lastModifiedDateTime": last_modified,
@@ -806,35 +825,43 @@ def sync_files_from_onedrive(token, share_url, save_dir):
 # ==== Bắt đầu đồng bộ dữ liệu từ OneDrive ===================================================== 
 # ==== GET SAVE DIRECTORY FROM PATH =====================================================
 def get_save_dir_from_path(folder_path):
-
     path_upper = folder_path.upper()
+    
+    # Nhận diện phân hệ nguồn từ OneDrive
+    is_aeongms = "AEONGMS" in path_upper
+    is_maxvalu = "MAXVALU" in path_upper
 
     # =====================================================
     # SENSOR
     # =====================================================
     if "SENSOR" in path_upper:
-        return IMAGE_SENSOR_ARCHIVE_DIR
+        if is_aeongms: return AEONGMS_IMAGE_SENSOR_ARCHIVE_DIR
+        if is_maxvalu: return MAXVALU_IMAGE_SENSOR_ARCHIVE_DIR
+        return None
 
     # =====================================================
     # GATEWAY
     # =====================================================
     elif "GATEWAY" in path_upper:
-        return IMAGE_GATEWAY_ARCHIVE_DIR
+        if is_aeongms: return AEONGMS_IMAGE_GATEWAY_ARCHIVE_DIR
+        if is_maxvalu: return MAXVALU_IMAGE_GATEWAY_ARCHIVE_DIR
+        return None
 
     # =====================================================
     # LAYOUT
     # =====================================================
     elif "LAYOUT" in path_upper:
-        return IMAGE_LAYOUT_ARCHIVE_DIR
+        if is_aeongms: return AEONGMS_IMAGE_LAYOUT_ARCHIVE_DIR
+        if is_maxvalu: return MAXVALU_IMAGE_LAYOUT_ARCHIVE_DIR
+        return None
 
     # =====================================================
-    # ALARM POINT
+    # ALARM POINT / ALARM POINTS
     # =====================================================
-    elif (
-        "ALARM_POINT" in path_upper
-        or "ALARM_POINTS" in path_upper
-    ):
-        return IMAGE_AL_ARCHIVE_DIR
+    elif "ALARM_POINT" in path_upper or "ALARM_POINTS" in path_upper:
+        if is_aeongms: return AEONGMS_IMAGE_AL_ARCHIVE_DIR
+        if is_maxvalu: return MAXVALU_IMAGE_AL_ARCHIVE_DIR
+        return None
 
     # =====================================================
     # REPORT FORM - AEON GMS
@@ -2243,39 +2270,24 @@ def create_new_window_contact(title,content=None):
     # =====================================================
     rb_confirm = tk.Radiobutton(
     confirm_frame,
-    text="Đã confirm",
-    variable=confirm_var,
+    text="Đã confirm",variable=confirm_var,
     value="confirmed",
-    bg="white",
-    font=("Arial", 11)
+    bg="white",font=("Arial", 11)
     )
 
     rb_not_confirm = tk.Radiobutton(
         confirm_frame,
-        text="Chưa confirm",
-        variable=confirm_var,
+        text="Chưa confirm",variable=confirm_var,
         value="not_confirmed",
-        bg="white",
-        font=("Arial", 11)
+        bg="white",font=("Arial", 11)
     )
 
-    rb_confirm.pack(
-        anchor="w",
-        padx=10,
-        pady=2
-    )
-
-    rb_not_confirm.pack(
-        anchor="w",
-        padx=10,
-        pady=2
-    )
-
+    rb_confirm.pack(anchor="w",padx=10,pady=2)
+    rb_not_confirm.pack(anchor="w",padx=10,pady=2)
     # =====================================================
     # INITIAL STATE
     # =====================================================
     toggle_entry_fields()
-
     # =====================================================
     # HANDLE OK
     # =====================================================
@@ -2284,27 +2296,19 @@ def create_new_window_contact(title,content=None):
         # CONFIRMED
         # =============================================
         if confirm_var.get() != "not_confirmed":
-
             new_window.destroy()
-
             return
-
         # =============================================
         # GET USER INPUT
         # =============================================
         dept = dept_entry.get().strip()
-
         device = device_entry.get().strip()
-
         status_val = status_entry.get().strip()
-
         desc = desc_entry.get(
             "1.0",
             tk.END
         ).strip()
-
         try:
-
             # =========================================
             # FIND TEMPLATE
             # =========================================
@@ -2312,18 +2316,15 @@ def create_new_window_contact(title,content=None):
             for filename in os.listdir(
                 REPORT_FORM_DIR
             ):
-
                 if (
                     CONTACT_SAMPLE_KEYWORD
                     in filename.upper()
                 ):
-
                     target_file = os.path.join(
                         REPORT_FORM_DIR,
                         filename
                     )
                     break
-
             # =========================================
             # NOT FOUND
             # =========================================
@@ -2332,7 +2333,6 @@ def create_new_window_contact(title,content=None):
                     f"Không tìm thấy "
                     f"'{CONTACT_SAMPLE_KEYWORD}'"
                 )
-
             # =========================================
             # READ TEMPLATE
             # =========================================
@@ -2352,7 +2352,6 @@ def create_new_window_contact(title,content=None):
                 line = line.replace("[status]",status_val)
                 line = line.replace("[description]",desc)
                 stripped_line = line.strip()
-
                 # =====================================
                 # SKIP EMPTY FIELD
                 # =====================================
@@ -2390,94 +2389,54 @@ def create_new_window_contact(title,content=None):
                         and not desc
                     )
                 ):
-
                     continue
-
                 if not stripped_line:
-
                     continue
-
-                replaced_lines.append(
-                    stripped_line
-                )
-
+                replaced_lines.append(stripped_line)
             # =========================================
             # FINAL CONTENT
             # =========================================
-            content = "\n".join(
-                replaced_lines
-            )
-
+            content = "\n".join(replaced_lines)
         except Exception as e:
-
             content = (
                 f"Lỗi khi xử lý "
                 f"CONTACT_FORM:\n{e}"
             )
-
         # =============================================
         # SHOW CONTENT
         # =============================================
-        output_text.config(
-            state="normal"
-        )
-
-        output_text.delete(
-            "1.0",
-            tk.END
-        )
-
-        output_text.insert(
-            tk.END,
-            content
-        )
-
-        output_text.config(
-            state="disabled"
-        )
-
+        output_text.config(state="normal")
+        output_text.delete("1.0",tk.END)
+        output_text.insert(tk.END,content)
+        output_text.config(state="disabled")
         # =============================================
         # START TIMER
         # =============================================
         try:
-
             if fill_box(1):
-
                 start_timer()
-
         except:
             pass
-
         # =============================================
         # CLOSE WINDOW
         # =============================================
         new_window.destroy()
-
     # =====================================================
     # OK BUTTON
     # =====================================================
     ok_button = tk.Button(
-
         new_window,
-
         text="OK",
-
         font=("Arial", 12, "bold"),
-
         bg="green",
-
         fg="white",
-
         width=15,
-
         command=handle_ok
     )
-
     ok_button.pack(
         pady=15
     )
-# == CỬA SỔ STATUS
-# =========================================================
+# == CỬA SỔ STATUS ==
 def create_new_window_status(title, content=None):
     new_window = tk.Toplevel(root)
     new_window.title(title)
@@ -3082,7 +3041,6 @@ def create_new_window_status(title, content=None):
 # == Cửa sổ note ==
 schedule_running = False
 schedule_after_id = None
-
 def create_new_window_note():
     # Thư mục lưu dữ liệu
     DATA_DIR = NOTE_ARCHIVE_DIR
@@ -3573,96 +3531,77 @@ def create_new_window_image_daviteq(title):
     # =====================================================
     # BUILD IMAGE MAPPING FROM LOCAL
     # =====================================================
+    # =====================================================
+    # BUILD IMAGE MAPPING FROM LOCAL (ĐỒNG BỘ HAI NHÁNH THƯ MỤC)
+    # =====================================================
     def build_image_mapping():
-
+        # Cấu hình danh sách thư mục cần quét cho từng danh mục cha
         image_roots = {
-            "LAYOUT": IMAGE_LAYOUT_ARCHIVE_DIR,
-            "GATEWAY": IMAGE_GATEWAY_ARCHIVE_DIR,
-            "SENSOR": IMAGE_SENSOR_ARCHIVE_DIR,
-            "ALARMPOINT": IMAGE_AL_ARCHIVE_DIR
+            "LAYOUT": [AEONGMS_IMAGE_LAYOUT_ARCHIVE_DIR, MAXVALU_IMAGE_LAYOUT_ARCHIVE_DIR],
+            "GATEWAY": [AEONGMS_IMAGE_GATEWAY_ARCHIVE_DIR, MAXVALU_IMAGE_GATEWAY_ARCHIVE_DIR],
+            "SENSOR": [AEONGMS_IMAGE_SENSOR_ARCHIVE_DIR, MAXVALU_IMAGE_SENSOR_ARCHIVE_DIR],
+            "ALARMPOINT": [AEONGMS_IMAGE_AL_ARCHIVE_DIR, MAXVALU_IMAGE_AL_ARCHIVE_DIR]
         }
 
         result = {}
-
-        for category, folder in image_roots.items():
-
+        for category, folders_list in image_roots.items():
             result[category] = {}
-
-            if not os.path.exists(folder):
-                continue
-
-            for filename in os.listdir(folder):
-
-                filepath = os.path.join(folder, filename)
-
-                if not os.path.isfile(filepath):
+            
+            # Duyệt qua từng thư mục cấu hình (quét cả GMS lẫn Maxvalu)
+            for folder in folders_list:
+                if not os.path.exists(folder):
                     continue
-
-                # bỏ extension
-                name_without_ext = os.path.splitext(filename)[0]
-
-                # split theo "_"
-                parts = name_without_ext.split("_")
-
-                # =================================================
-                # FORMAT:
-                # NVL_DELICA
-                # TQB_BAKERY
-                # =================================================
-                if len(parts) < 2:
-                    continue
-
-                area = parts[0].upper()
-
-                device = "_".join(parts[1:])
-
-                if area not in result[category]:
-                    result[category][area] = []
-
-                result[category][area].append({
-                    "device": device,
-                    "path": filepath,
-                    "filename": filename
-                })
-
-        # SORT DEVICE
+                for filename in os.listdir(folder):
+                    filepath = os.path.join(folder, filename)
+                    if not os.path.isfile(filepath):
+                        continue
+                        
+                    # Bỏ extension (.png, .jpg...)
+                    name_without_ext = os.path.splitext(filename)[0]
+                    # Split theo ký tự "_"
+                    parts = name_without_ext.split("_")
+                    
+                    # Định dạng chuẩn: NVL_DELICA hoặc TQB_BAKERY
+                    if len(parts) < 2:
+                        continue
+                        
+                    area = parts[0].upper()
+                    device = "_".join(parts[1:])
+                    
+                    if area not in result[category]:
+                        result[category][area] = []
+                        
+                    result[category][area].append({
+                        "device": device,
+                        "path": filepath,
+                        "filename": filename
+                    })
+                    
+        # Sắp xếp lại thứ tự thiết bị (Device) theo Alphabet để hiển thị đẹp mắt
         for category in result:
             for area in result[category]:
                 result[category][area].sort(
                     key=lambda x: x["device"]
                 )
-
         return result
-
     # =====================================================
     # SHOW IMAGES
     # =====================================================
     def show_images(image_list):
-
         for widget in image_frame.winfo_children():
             widget.destroy()
-
         for idx, item in enumerate(image_list):
-
             try:
-
                 img_path = item["path"]
-
                 device_name = item["device"]
-
                 img = Image.open(img_path)
-
                 img.thumbnail(
                     (140, 100),
                     Image.Resampling.LANCZOS
                 )
-
                 photo = ImageTk.PhotoImage(img)
-
                 row = idx // max_columns
-
                 col = idx % max_columns
-
                 # =============================================
                 # ITEM FRAME
                 # =============================================
@@ -3670,14 +3609,12 @@ def create_new_window_image_daviteq(title):
                     image_frame,
                     bg="white"
                 )
-
                 item_frame.grid(
                     row=row,
                     column=col,
                     padx=10,
                     pady=10
                 )
-
                 # =============================================
                 # IMAGE BUTTON
                 # =============================================
@@ -3689,9 +3626,7 @@ def create_new_window_image_daviteq(title):
                 )
 
                 label_img.image = photo
-
                 label_img.pack()
-
                 # =============================================
                 # DEVICE LABEL
                 # =============================================
@@ -3707,7 +3642,6 @@ def create_new_window_image_daviteq(title):
                 label_text.pack(
                     pady=(5, 0)
                 )
-
                 # =============================================
                 # OPEN LARGE IMAGE
                 # =============================================
@@ -3716,47 +3650,30 @@ def create_new_window_image_daviteq(title):
                     lambda e, p=img_path:
                         open_large_image(p)
                 )
-
             except Exception as e:
-
                 print(
                     f"❌ Lỗi xử lý ảnh: {e}"
                 )
-
     # =====================================================
     # OPEN LARGE IMAGE
     # =====================================================
     def open_large_image(img_path):
-
         try:
-
             img = Image.open(img_path)
-
             # scale 50%
             scale_factor = 0.5
-
             new_size = (
                 int(img.width * scale_factor),
                 int(img.height * scale_factor)
             )
-
             img_resized = img.resize(
                 new_size,
                 Image.Resampling.LANCZOS
             )
-
             photo = ImageTk.PhotoImage(img_resized)
-
             popup = tk.Toplevel(new_window)
-
-            popup.title(
-                "DAVITEQ IMAGE DATA"
-            )
-
-            popup.configure(
-                bg="white"
-            )
-
+            popup.title("DAVITEQ IMAGE DATA")
+            popup.configure(bg="white")
             lbl = tk.Label(
                 popup,
                 image=photo,
@@ -4028,7 +3945,6 @@ def create_new_window_image_daviteq(title):
             first_sub_btn,
             first_image_list
         )
-
 # == Cửa sổ tài liệu ==
 def create_documentary_viewer(token, share_url):
     files = list_files_from_url(token, share_url)  # Lấy file từ OneDrive Azure
