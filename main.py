@@ -41,55 +41,63 @@ CACHE_DIR = r"D:\RMC_Assistant_v3\Cache"
 CACHE_FILE = os.path.join(CACHE_DIR, "token_cache.bin")
 
 # ============ Đường dân local trên máy tính để lưu trữ cache ================
-# == đường dẫn lưu trữ các biểu mẫu ==
-REPORT_FORM_DIR = r"D:\RMC_Assistant_v3\Report_Form_Cache"
+APP_ROOT = os.path.join(os.environ["LOCALAPPDATA"],"RMC_Assistant_v3")
+# ==========================================================
+# CACHE
+# ==========================================================
+CACHE_DIR = os.path.join(APP_ROOT, "Cache")
+CACHE_FILE = os.path.join(CACHE_DIR, "token_cache.bin")
+# ==========================================================
+# REPORT FORM
+# ==========================================================
+REPORT_FORM_DIR = os.path.join(APP_ROOT, "Report_Form_Cache")
+AEONGMS_DIR = os.path.join(REPORT_FORM_DIR, "AEONGMS")
+AEONMAXVALU_DIR = os.path.join(REPORT_FORM_DIR, "MAXVALU")
+# ==========================================================
+# NOTE
+# ==========================================================
+NOTE_ARCHIVE_DIR = os.path.join(APP_ROOT, "NOTE")
+# ==========================================================
+# IMAGE
+# ==========================================================
+IMAGE_ROOT_DIR = os.path.join(APP_ROOT, "IMAGE")
+IMAGE_LAYOUT_ARCHIVE_DIR = os.path.join(IMAGE_ROOT_DIR,"LAYOUT")
+IMAGE_GATEWAY_ARCHIVE_DIR = os.path.join(IMAGE_ROOT_DIR,"GATEWAY")
+IMAGE_SENSOR_ARCHIVE_DIR = os.path.join(IMAGE_ROOT_DIR,"SENSOR")
+IMAGE_AL_ARCHIVE_DIR = os.path.join(IMAGE_ROOT_DIR,"ALARMPOINT")
+# ==========================================================
+# DOCUMENTARY
+# ==========================================================
+DOCUMENTARY_ARCHIVE_DIR = os.path.join(APP_ROOT,"DOCUMENTARY")
+# ==========================================================
+# METADATA
+# ==========================================================
+METADATA_DIR = os.path.join(APP_ROOT,"METADATA")
+# ==========================================================
+# TẠO THƯ MỤC NẾU CHƯA TỒN TẠI
+# ==========================================================
+folders = [
+    APP_ROOT,
+    CACHE_DIR,
+    REPORT_FORM_DIR,
+    AEONGMS_DIR,
+    AEONMAXVALU_DIR,
+    NOTE_ARCHIVE_DIR,
+    IMAGE_ROOT_DIR,
+    IMAGE_LAYOUT_ARCHIVE_DIR,
+    IMAGE_GATEWAY_ARCHIVE_DIR,
+    IMAGE_SENSOR_ARCHIVE_DIR,
+    IMAGE_AL_ARCHIVE_DIR,
+    DOCUMENTARY_ARCHIVE_DIR,
+    METADATA_DIR
+]
+for folder in folders:
+    os.makedirs(folder, exist_ok=True)
 
-#Tạo thư mục lưu trữ file báo cáo cho các nhanh khác nhau
-AEONGMS_DIR = r"D:\RMC_Assistant_v3\Report_Form_Cache\AEONGMS" #<====== Thư mục dành riêng cho việc lưu trữ biểu mẫu của AEON GMS
-AEONMAXVALU_DIR = r"D:\RMC_Assistant_v3\Report_Form_Cache\MAXVALU" #<====== Thư mục dành riêng cho việc lưu trữ biểu mẫu của AEON MAXVALU
-
-# == đường dẫn lưu trữ các ghi chú ==
-NOTE_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\NOTE"
-
-# == đường dẫn lưu trữ các hình ảnh ==
-IMAGE_LAYOUT_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\IMAGE\LAYOUT"
-IMAGE_GATEWAY_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\IMAGE\GATEWAY"
-IMAGE_SENSOR_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\IMAGE\SENSOR"
-IMAGE_AL_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\IMAGE\ALARMPOINT"
-
-# == đường dẫn lưu trữ các tài liệu ==
-DOCUMENTARY_ARCHIVE_DIR = r"D:\RMC_Assistant_v3\DOCUMENTARY"
-
-# == Đường dẫn METADATA ==
-METADATA_DIR = r"D:\RMC_Assistant_v3\METADATA"
-
-# === Khu vực tạo các thư mục lưu trữ nếu chưa có ===
-# Tạo thư mục lưu trữ cache
-os.makedirs(CACHE_DIR, exist_ok=True)
-
-# Tạo thư lục lưu trữ biểu mẫu chung
-os.makedirs(REPORT_FORM_DIR, exist_ok=True)
-
-# Tạo thư lục lưu trữ biểu mẫu chung
-os.makedirs(AEONGMS_DIR, exist_ok=True) #<====== Thư mục dành riêng cho việc lưu trữ biểu mẫu của AEON GMS
-os.makedirs(AEONMAXVALU_DIR, exist_ok=True) #<====== Thư mục dành riêng cho việc lưu trữ biểu mẫu của AEON MAXVALU
-
-#Tạo thư mục lưu trữ ghi chú
-os.makedirs(NOTE_ARCHIVE_DIR, exist_ok=True)
-
-# Tạo thư mục lưu trữ hình ảnh
-os.makedirs(IMAGE_LAYOUT_ARCHIVE_DIR, exist_ok=True)
-os.makedirs(IMAGE_GATEWAY_ARCHIVE_DIR, exist_ok=True)
-os.makedirs(IMAGE_SENSOR_ARCHIVE_DIR, exist_ok=True)
-os.makedirs(IMAGE_AL_ARCHIVE_DIR, exist_ok=True)
-
-# Tạo thư mục lưu trữ tài liệu
-os.makedirs(DOCUMENTARY_ARCHIVE_DIR, exist_ok=True)
-
-# Tạo thư mục METADATA
-os.makedirs(METADATA_DIR, exist_ok=True)
-
-#Biến lưu trữ nguồn báo cáo hiện tại đang xử lý (mặc định là AEON GMS)
+print("APP_ROOT =", APP_ROOT)
+# ==========================================================
+# BIẾN HỆ THỐNG
+# ==========================================================
 CURRENT_SOURCE = "AEONGMS"
 ALL_REPORT_MAPPINGS = {
     "AEONGMS": {},
@@ -1008,6 +1016,47 @@ def reset_after_delay():
         "Quy trình xử lý sự cố đang đợi"
     )
 
+
+# =========================================================
+# CLEANUP ON EXIT
+# =========================================================
+def on_closing():
+    """Cancel scheduled after jobs and exit cleanly."""
+    global clock_after_id, countdown_job, schedule_after_id, reset_after_id, schedule_running
+    # stop schedule loop
+    try:
+        schedule_running = False
+    except Exception:
+        pass
+    # cancel known after jobs
+    try:
+        if clock_after_id:
+            root.after_cancel(clock_after_id)
+    except Exception:
+        pass
+    try:
+        if countdown_job:
+            root.after_cancel(countdown_job)
+    except Exception:
+        pass
+    try:
+        if schedule_after_id:
+            root.after_cancel(schedule_after_id)
+    except Exception:
+        pass
+    try:
+        if reset_after_id:
+            root.after_cancel(reset_after_id)
+    except Exception:
+        pass
+    try:
+        root.destroy()
+    except Exception:
+        try:
+            root.quit()
+        except Exception:
+            pass
+
 def update_hint(text):
     if hint_label:
         hint_label.config(text=text)
@@ -1053,6 +1102,7 @@ def continue_clock():
 # =========================================================
 countdown_job = None
 time_left = 300
+reset_after_id = None
 
 # =========================================================
 # UPDATE TIMER
@@ -4402,5 +4452,6 @@ length=300
 show_startup_window()
 
 # ==== CHẠY ỨNG DỤNG ====
+root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
 
