@@ -951,7 +951,7 @@ def auto_sync_all_onedrive():
 # Tạo cửa sổ chính
 root = tk.Tk()
 root.title("RMC Report Assistant")
-root.geometry("1080x800")
+root.geometry("1080x680")
 
 # Frame chính
 main_frame = tk.Frame(root)
