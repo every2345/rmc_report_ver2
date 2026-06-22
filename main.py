@@ -951,7 +951,7 @@ def auto_sync_all_onedrive():
 # Tạo cửa sổ chính
 root = tk.Tk()
 root.title("RMC Report Assistant")
-root.geometry("1080x680")
+root.geometry("1366x768")
 
 # Frame chính
 main_frame = tk.Frame(root)
@@ -1004,9 +1004,24 @@ for i in range(6):
     lbl.grid(row=0, column=i, padx=5)
     boxes.append(lbl)
 
-# ==== TẠO hint_label nằm dưới box_frame ====
-hint_label = tk.Label(main_frame, text="Quy trình xử lý sự cố đang đợi", wraplength=800, justify="left", font=("Arial", 11), fg="black")
-hint_label.pack(pady=(10, 20))  # Giữa box_frame và nút xác nhận
+# =========================================================
+# KHUNG CHỨA HINT CỐ ĐỊNH KÍCH THƯỚC
+# =========================================================
+# Định nghĩa chiều rộng (width) và chiều cao (height) cố định cho khung gợi ý
+hint_container = tk.Frame(main_frame, width=800, height=30, bg="SystemButtonFace")
+hint_container.pack(pady=(10, 20))
+hint_container.pack_propagate(False) # KHÓA CỨNG KÍCH THƯỚC: Ép khung không giãn theo chữ
+
+# Đưa hint_label vào trong hint_container (bỏ bớt phần wraplength tĩnh)
+hint_label = tk.Label(
+    hint_container, 
+    text="Quy trình xử lý sự cố đang đợi", 
+    justify="left", 
+    font=("Arial", 10), 
+    fg="black"
+)
+# Sử dụng fill="both" và expand=True để chữ tự căn đều trong khung cố định
+hint_label.pack(fill="both", expand=True)
 
 # ==== Hàm xử lý tô màu ====
 def on_category_click():
@@ -1042,8 +1057,6 @@ def reset_after_delay():
     update_hint(
         "Quy trình xử lý sự cố đang đợi"
     )
-
-
 # =========================================================
 # CLEANUP ON EXIT
 # =========================================================
@@ -1130,7 +1143,6 @@ def continue_clock():
 countdown_job = None
 time_left = 300
 reset_after_id = None
-
 # =========================================================
 # UPDATE TIMER
 # =========================================================
@@ -1574,8 +1586,14 @@ site_search_frame.pack(fill="x",padx=5,pady=(5, 0))
 # =========================================================
 # DEVICE CONTAINER
 # =========================================================
-device_container = tk.Frame(main_container,bg="white")
-device_container.pack(side="left",fill="both",expand=True,padx=(10, 0))
+# 1. Thêm width cố định (ví dụ 220 hoặc 250 tùy độ dài tên thiết bị)
+device_container = tk.Frame(main_container, width=220, bg="white")
+
+# 2. Xóa expand=True và đổi fill="both" thành fill="y" để khung chỉ kéo dài theo chiều dọc
+device_container.pack(side="left", fill="y", padx=(10, 0))
+
+# 3. Thêm dòng này để khóa cứng chiều rộng, ép thanh cuộn phải bám sát vào lề của 220px
+device_container.pack_propagate(False)
 
 # =========================================================
 # DEVICE SEARCH FRAME
@@ -1633,16 +1651,33 @@ device_canvas = tk.Canvas(device_container,bg="white",highlightthickness=0)
 device_scrollbar = tk.Scrollbar(device_container,orient="vertical",command=device_canvas.yview)
 device_scrollable_frame = tk.Frame(device_canvas,bg="white")
 # =========================================================
-# UPDATE DEVICE SCROLL
+# GẮN FRAME VÀO CANVAS
+# =========================================================
+# Lưu lại ID của window bên trong canvas để kiểm soát chiều rộng
+device_window_id = device_canvas.create_window((0, 0), window=device_scrollable_frame, anchor="nw")
+device_canvas.configure(yscrollcommand=device_scrollbar.set)
+# =========================================================
+# THỨ TỰ PACK CHUẨN (RẤT QUAN TRỌNG)
+# =========================================================
+# 1. BẮT BUỘC phải pack Scrollbar trước để nó luôn bám sát lề phải
+device_scrollbar.pack(side="right", fill="y")
+# 2. Pack Canvas sau để nó tự động điền vào phần không gian còn lại
+device_canvas.pack(side="left", fill="both", expand=True)
+# =========================================================
+# XỬ LÝ SỰ KIỆN CUỘN & CHỐNG TRÀN CHIỀU NGANG
 # =========================================================
 def on_device_configure(event):
-    device_canvas.configure(
-        scrollregion=device_canvas.bbox("all")
-    )
-device_scrollable_frame.bind(
-    "<Configure>",
-    on_device_configure
-)
+    # Cập nhật lại giới hạn cuộn dọc khi thêm/bớt nút thiết bị
+    device_canvas.configure(scrollregion=device_canvas.bbox("all"))
+
+def on_canvas_configure(event):
+    # Ép chiều rộng của frame chứa nút bấm bằng đúng chiều rộng của Canvas.
+    # Việc này ngăn tên thiết bị quá dài đâm xuyên qua lề phải làm hỏng thanh cuộn.
+    device_canvas.itemconfig(device_window_id, width=event.width)
+
+# Lắng nghe sự thay đổi kích thước
+device_scrollable_frame.bind("<Configure>", on_device_configure)
+device_canvas.bind("<Configure>", on_canvas_configure)
 
 # =========================================================
 # CREATE DEVICE WINDOW
