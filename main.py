@@ -966,7 +966,7 @@ left_button_frame = tk.Frame(content_frame)
 left_button_frame.pack(side="left", fill="y", padx=10, pady=10)
 
 # === Text để hiển thị văn bản ===
-output_text = tk.Text(content_frame, font=("Arial", 13), width=60, height=20, wrap="word")
+output_text = tk.Text(content_frame, font=("Arial", 13), width=60, height=17, wrap="word")
 output_text.pack(side='left', pady=(10, 0), padx=10)
 output_text.config(state='disabled')
 
@@ -1275,7 +1275,7 @@ def reset_timer():
 timer_frame = tk.Frame(main_frame)
 timer_frame.pack(pady=(10, 0))
 
-timer_label = tk.Label(timer_frame, text="⏳Waiting Countdown⏳", font=("Arial", 16, "bold"), fg="blue")
+timer_label = tk.Label(timer_frame, text="⏳Waiting Countdown⏳", font=("Arial", 12, "bold"), fg="blue")
 timer_label.pack()
 
 countdown_job = None
