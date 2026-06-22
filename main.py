@@ -1306,10 +1306,8 @@ def authenticate():
         return result["access_token"]
     else:
         raise Exception("Đăng nhập thất bại: " + str(result))
-
 # Đăng nhập Azure
 access_token = authenticate()
-
 # ==== Lấy danh sách file từ link chia sẻ ====
 def list_files_from_url(token, share_url):
     encoded_url = base64.b64encode(share_url.encode("utf-8")).decode("utf-8")
@@ -1322,7 +1320,6 @@ def list_files_from_url(token, share_url):
         return [{"id": item["id"], "name": item["name"]} for item in items if "file" in item]
     else:
         return []
-
 # === Hiển thị file văn bản từ OneDrive ===========================================================================
 # ==== LẤY DANH SÁCH FILE ONE DRIVE THEO TÊN ====
 # =========================================================
@@ -1498,12 +1495,19 @@ def set_active_child_button(btn):
     btn.config(bg="blue", fg="white")
     active_child_button = btn
 def create_list_block(parent, list_name, items, toggle_function, state):
-
     block_frame = tk.Frame(parent)
-    block_frame.pack(pady=10, anchor='w')
+    # Đổi anchor='w' thành fill='x' để khung tự động dãn ngang
+    block_frame.pack(pady=10, fill='x', padx=5) # Thêm padx=5 để nút không sát rạt vào lề
 
-    list_button = tk.Button(block_frame,text=list_name,font=("Arial", 14),width=12,command=lambda: [set_active_parent_button(list_button), toggle_function(state)])
-    list_button.pack(anchor='w')
+    # Bỏ thuộc tính width=10 để nút linh hoạt kích thước
+    list_button = tk.Button(
+        block_frame,
+        text=list_name,
+        font=("Arial", 14),
+        command=lambda: [set_active_parent_button(list_button), toggle_function(state)]
+    )
+    # Đổi anchor='w' thành fill='x' để bản thân nút tự dãn lấp đầy block_frame
+    list_button.pack(fill='x')
     state["button"] = list_button
 
 # ==== HÀM BẬT TẮT DANH SÁCH ====
@@ -1569,20 +1573,17 @@ root.after(100,lambda: switch_source("AEONGMS",btn_aeongms))
 # =========================================================
 main_container = tk.Frame(content_frame,bg="white")
 main_container.pack(fill="both",expand=True,padx=10,pady=10)
-
 # =========================================================
 # AREA CONTAINER
 # =========================================================
-area_container = tk.Frame(main_container,width=220,bg="white")
+area_container = tk.Frame(main_container,width=180,bg="white")
 area_container.pack(side="left",fill="y")
 area_container.pack_propagate(False)
-
 # =========================================================
 # SITE SEARCH FRAME
 # =========================================================
 site_search_frame = tk.Frame(area_container,bg="white")
 site_search_frame.pack(fill="x",padx=5,pady=(5, 0))
-
 # =========================================================
 # DEVICE CONTAINER
 # =========================================================
@@ -1600,28 +1601,24 @@ device_container.pack_propagate(False)
 # =========================================================
 device_search_frame = tk.Frame(device_container,bg="white")
 device_search_frame.pack(fill="x",padx=5,pady=(5, 0))
-
 # =========================================================
 # SEARCH AREA
 # =========================================================
 search_parent_var = tk.StringVar()
 search_parent_entry = tk.Entry(site_search_frame,textvariable=search_parent_var,font=("Arial", 10))
 search_parent_entry.pack(fill="x",pady=5)
-
 # =========================================================
 # SEARCH DEVICE
 # =========================================================
 search_device_var = tk.StringVar()
 search_device_entry = tk.Entry(device_search_frame,textvariable=search_device_var,font=("Arial", 10))
 search_device_entry.pack(fill="x",pady=5)
-
 # =========================================================
 # AREA CANVAS
 # =========================================================
 area_canvas = tk.Canvas(area_container,bg="white",highlightthickness=0)
 area_scrollbar = tk.Scrollbar(area_container,orient="vertical",command=area_canvas.yview)
 area_scrollable_frame = tk.Frame(area_canvas,bg="white")
-
 # =========================================================
 # AREA SCROLLBAR
 # =========================================================
@@ -1637,13 +1634,31 @@ def on_area_configure(event):
         scrollregion=area_canvas.bbox("all")
     )
 area_scrollable_frame.bind("<Configure>",on_area_configure)
+
 # =========================================================
 # CREATE AREA WINDOW
 # =========================================================
-area_canvas.create_window((0, 0),window=area_scrollable_frame,anchor="nw")
+# Lưu lại ID của window bên trong canvas
+area_window_id = area_canvas.create_window((0, 0), window=area_scrollable_frame, anchor="nw")
 area_canvas.configure(yscrollcommand=area_scrollbar.set)
-area_canvas.pack(side="left",fill="both",expand=True)
-area_scrollbar.pack(side="right",fill="y")
+
+# Thứ tự pack: Scrollbar trước, Canvas sau
+area_scrollbar.pack(side="right", fill="y")
+area_canvas.pack(side="left", fill="both", expand=True)
+
+# =========================================================
+# UPDATE AREA SCROLL & AUTO WIDTH
+# =========================================================
+def on_area_configure(event):
+    area_canvas.configure(scrollregion=area_canvas.bbox("all"))
+
+def on_area_canvas_configure(event):
+    # Ép khung cuộn khu vực luôn rộng bằng Canvas chứa nó
+    area_canvas.itemconfig(area_window_id, width=event.width)
+
+area_scrollable_frame.bind("<Configure>", on_area_configure)
+area_canvas.bind("<Configure>", on_area_canvas_configure)
+
 # =========================================================
 # DEVICE CANVAS
 # =========================================================
@@ -4401,7 +4416,6 @@ length=300
     ).pack(pady=10)
 # ==== CHẠY Giao diện hỏi người dùng có muốn đồng bộ hay ko đồng bọ trước khi vào app chính ====
 show_startup_window()
-
 # ==== CHẠY ỨNG DỤNG ====
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
