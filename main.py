@@ -1061,14 +1061,19 @@ def reset_after_delay():
 # =========================================================
 # CLEANUP ON EXIT
 # =========================================================
+# =========================================================
+# CLEANUP ON EXIT
+# =========================================================
 def on_closing():
     """Cancel scheduled after jobs and exit cleanly."""
-    global clock_after_id, countdown_job, schedule_after_id, reset_after_id, schedule_running
+    global clock_after_id, countdown_job, schedule_after_id, reset_after_id, schedule_running, scroll_after_id
+    
     # stop schedule loop
     try:
         schedule_running = False
     except Exception:
         pass
+        
     # cancel known after jobs
     try:
         if clock_after_id:
@@ -1090,6 +1095,14 @@ def on_closing():
             root.after_cancel(reset_after_id)
     except Exception:
         pass
+        
+    # Thêm phần dọn dẹp tiến trình cuộn chữ
+    try:
+        if scroll_after_id:
+            root.after_cancel(scroll_after_id)
+    except Exception:
+        pass
+        
     try:
         root.destroy()
     except Exception:
@@ -1098,9 +1111,47 @@ def on_closing():
         except Exception:
             pass
 
+# =========================================================
+# XỬ LÝ CHỮ CHẠY (MARQUEE) CHO HINT
+# =========================================================
+scroll_after_id = None
+full_hint_text = ""
+# Cài đặt số ký tự tối đa hiển thị trên khung (Bạn có thể tăng/giảm tùy kích thước khung)
+DISPLAY_LEN = 80 
+
 def update_hint(text):
+    global scroll_after_id, full_hint_text
+    
+    # Nếu đang có hiệu ứng chạy chữ cũ thì phải hủy nó đi trước khi hiển thị chữ mới
+    if scroll_after_id is not None:
+        try:
+            root.after_cancel(scroll_after_id)
+        except Exception:
+            pass
+        scroll_after_id = None
+        
     if hint_label:
-        hint_label.config(text=text)
+        # Nếu chữ ngắn gọn, không cần chạy chữ
+        if len(text) <= DISPLAY_LEN:
+            hint_label.config(text=text)
+        else:
+            # Nếu chữ dài, thêm một khoảng trắng ở cuối để tạo sự ngắt quãng khi lặp lại
+            full_hint_text = text + " " * 30 
+            scroll_text()
+
+def scroll_text():
+    global scroll_after_id, full_hint_text
+    
+    if hint_label and hint_label.winfo_exists():
+        # Lấy một đoạn chuỗi vừa đủ độ dài khung để hiển thị
+        display_text = full_hint_text[:DISPLAY_LEN]
+        hint_label.config(text=display_text)
+        
+        # Đưa ký tự đầu tiên xuống cuối cùng để text dịch chuyển sang trái
+        full_hint_text = full_hint_text[1:] + full_hint_text[0]
+        
+        # Chạy lại hàm này sau 120ms (Giảm số này chữ sẽ chạy nhanh hơn, tăng thì chậm lại)
+        scroll_after_id = root.after(120, scroll_text)
 
 # ==== Chức năng cho nút copy và nút clear văn bản đang hiển thị trên text box ====
 def copy_text_to_clipboard():
