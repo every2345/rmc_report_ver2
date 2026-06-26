@@ -15,6 +15,7 @@ import threading
 from tkinter import ttk, messagebox
 import json
 import schedule
+from tkcalendar import DateEntry
 
 # ==== Khởi tạo Tkinter root trước ====
 root = tk.Tk()
@@ -2486,128 +2487,57 @@ def create_new_window_contact(title,content=None):
     ok_button.pack(
         pady=15
     )
+# Nhớ thêm dòng này lên đầu file code của bạn nhé:
+# from tkcalendar import DateEntry
+
 # == CỬA SỔ STATUS ==
 def create_new_window_status(title, content=None):
     new_window = tk.Toplevel(root)
     new_window.title(title)
-    new_window.geometry("600x500")
+    new_window.geometry("600x600")
     new_window.configure(bg="white")
+
     # =====================================================
     # CONFIRM STATE
     # =====================================================
-    confirm_var = tk.StringVar(
-        master=new_window,
-        value="not_confirmed"
-    )
+    confirm_var = tk.StringVar(master=new_window, value="not_confirmed")
 
     def on_confirm_change(*args):
         print("Selected:", confirm_var.get())
         toggle_entry_fields()
 
-    confirm_var.trace_add(
-        "write",
-        on_confirm_change
-    )
+    confirm_var.trace_add("write", on_confirm_change)
+
     # =====================================================
     # CONFIRM FRAME
     # =====================================================
-    confirm_frame = tk.LabelFrame(
-        new_window,
-        text="Đã confirm chưa?",
-        font=("Arial", 12, "bold")
-    )
-
-    confirm_frame.pack(
-        padx=20,
-        pady=10,
-        fill="x"
-    )
+    confirm_frame = tk.LabelFrame(new_window, text="Đã confirm chưa?", font=("Arial", 12, "bold"))
+    confirm_frame.pack(padx=20, pady=10, fill="x")
 
     # =====================================================
     # FORM FRAME
     # =====================================================
-    form_frame = tk.Frame(
-        new_window,
-        bg="white"
-    )
-
-    form_frame.pack(
-        padx=20,
-        pady=10,
-        fill="x"
-    )
+    form_frame = tk.Frame(new_window, bg="white")
+    form_frame.pack(padx=20, pady=10, fill="x")
 
     # =====================================================
     # DEPARTMENT
     # =====================================================
-    tk.Label(
-        form_frame,
-        text="Tên bộ phận:",
-        font=("Arial", 11),
-        bg="white"
-    ).grid(
-        row=0,
-        column=0,
-        sticky="w",
-        pady=5
-    )
-
-    dept_entry = tk.Entry(
-        form_frame,
-        font=("Arial", 11),
-        state="disabled"
-    )
-
-    dept_entry.grid(
-        row=0,
-        column=1,
-        pady=5,
-        sticky="ew"
-    )
+    tk.Label(form_frame, text="Tên bộ phận:", font=("Arial", 11), bg="white").grid(row=0, column=0, sticky="w", pady=5)
+    dept_entry = tk.Entry(form_frame, font=("Arial", 11), state="disabled")
+    dept_entry.grid(row=0, column=1, pady=5, sticky="ew")
 
     # =====================================================
     # DEVICE
     # =====================================================
-    tk.Label(
-        form_frame,
-        text="Tên thiết bị:",
-        font=("Arial", 11),
-        bg="white"
-    ).grid(
-        row=1,
-        column=0,
-        sticky="w",
-        pady=5
-    )
-
-    device_entry = tk.Entry(
-        form_frame,
-        font=("Arial", 11),
-        state="disabled"
-    )
-
-    device_entry.grid(
-        row=1,
-        column=1,
-        pady=5,
-        sticky="ew"
-    )
+    tk.Label(form_frame, text="Tên thiết bị:", font=("Arial", 11), bg="white").grid(row=1, column=0, sticky="w", pady=5)
+    device_entry = tk.Entry(form_frame, font=("Arial", 11), state="disabled")
+    device_entry.grid(row=1, column=1, pady=5, sticky="ew")
 
     # =====================================================
     # STATUS
     # =====================================================
-    tk.Label(
-        form_frame,
-        text="Tình trạng:",
-        font=("Arial", 11),
-        bg="white"
-    ).grid(
-        row=2,
-        column=0,
-        sticky="w",
-        pady=5
-    )
-
+    tk.Label(form_frame, text="Tình trạng:", font=("Arial", 11), bg="white").grid(row=2, column=0, sticky="w", pady=5)
     status_entry = ttk.Combobox(
         form_frame,
         font=("Arial", 11),
@@ -2621,212 +2551,87 @@ def create_new_window_status(title, content=None):
             "Không chọn"
         ]
     )
-
-    status_entry.grid(
-        row=2,
-        column=1,
-        pady=5,
-        sticky="ew"
-    )
-
+    status_entry.grid(row=2, column=1, pady=5, sticky="ew")
     status_entry.set("Không chọn")
 
     # =====================================================
-    # START TIME
+    # START DATE & TIME (SỬ DỤNG DATEENTRY)
     # =====================================================
-    tk.Label(
-        form_frame,
-        text="Thời gian bắt đầu (HH:MM):",
-        font=("Arial", 11),
-        bg="white"
-    ).grid(
-        row=3,
-        column=0,
-        sticky="w",
-        pady=5
-    )
-
-    start_time_entry = tk.Entry(
-        form_frame,
-        font=("Arial", 11),
+    tk.Label(form_frame, text="Ngày bắt đầu:", font=("Arial", 11), bg="white").grid(row=3, column=0, sticky="w", pady=5)
+    start_date_entry = DateEntry(
+        form_frame, 
+        font=("Arial", 11), 
+        width=12, 
+        background='darkblue',
+        foreground='white', 
+        borderwidth=2, 
+        date_pattern='dd/mm/yyyy', 
         state="disabled"
     )
+    start_date_entry.grid(row=3, column=1, pady=5, sticky="ew")
 
-    start_time_entry.grid(
-        row=3,
-        column=1,
-        pady=5,
-        sticky="ew"
-    )
+    tk.Label(form_frame, text="Thời gian bắt đầu (HH:MM):", font=("Arial", 11), bg="white").grid(row=4, column=0, sticky="w", pady=5)
+    start_time_entry = tk.Entry(form_frame, font=("Arial", 11), state="disabled")
+    start_time_entry.grid(row=4, column=1, pady=5, sticky="ew")
 
     # =====================================================
-    # END TIME
+    # END DATE & TIME (SỬ DỤNG DATEENTRY)
     # =====================================================
-    tk.Label(
-        form_frame,
-        text="Thời gian kết thúc (HH:MM):",
-        font=("Arial", 11),
-        bg="white"
-    ).grid(
-        row=4,
-        column=0,
-        sticky="w",
-        pady=5
-    )
-
-    end_time_entry = tk.Entry(
-        form_frame,
-        font=("Arial", 11),
+    tk.Label(form_frame, text="Ngày kết thúc:", font=("Arial", 11), bg="white").grid(row=5, column=0, sticky="w", pady=5)
+    end_date_entry = DateEntry(
+        form_frame, 
+        font=("Arial", 11), 
+        width=12, 
+        background='darkblue',
+        foreground='white', 
+        borderwidth=2, 
+        date_pattern='dd/mm/yyyy', 
         state="disabled"
     )
+    end_date_entry.grid(row=5, column=1, pady=5, sticky="ew")
 
-    end_time_entry.grid(
-        row=4,
-        column=1,
-        pady=5,
-        sticky="ew"
-    )
+    tk.Label(form_frame, text="Thời gian kết thúc (HH:MM):", font=("Arial", 11), bg="white").grid(row=6, column=0, sticky="w", pady=5)
+    end_time_entry = tk.Entry(form_frame, font=("Arial", 11), state="disabled")
+    end_time_entry.grid(row=6, column=1, pady=5, sticky="ew")
 
     # =====================================================
     # DESCRIPTION
     # =====================================================
-    tk.Label(
-        form_frame,
-        text="Mô tả:",
-        font=("Arial", 11),
-        bg="white"
-    ).grid(
-        row=5,
-        column=0,
-        sticky="nw",
-        pady=5
-    )
+    tk.Label(form_frame, text="Mô tả:", font=("Arial", 11), bg="white").grid(row=7, column=0, sticky="nw", pady=5)
+    desc_entry = tk.Text(form_frame, font=("Arial", 11), height=5, width=40, state="disabled")
+    desc_entry.grid(row=7, column=1, pady=5, sticky="ew")
 
-    desc_entry = tk.Text(
-        form_frame,
-        font=("Arial", 11),
-        height=5,
-        width=40,
-        state="disabled"
-    )
-
-    desc_entry.grid(
-        row=5,
-        column=1,
-        pady=5,
-        sticky="ew"
-    )
-
-    form_frame.columnconfigure(
-        1,
-        weight=1
-    )
+    form_frame.columnconfigure(1, weight=1)
 
     # =====================================================
     # ENABLE / DISABLE FIELD
     # =====================================================
     def toggle_entry_fields():
+        is_not_confirmed = (confirm_var.get() == "not_confirmed")
+        
+        state_normal = "normal" if is_not_confirmed else "disabled"
+        state_readonly = "readonly" if is_not_confirmed else "disabled"
 
-        is_not_confirmed = (
-            confirm_var.get() == "not_confirmed"
-        )
-
-        # =================================================
-        # ENABLE
-        # =================================================
-        if is_not_confirmed:
-
-            dept_entry.config(
-                state="normal"
-            )
-
-            device_entry.config(
-                state="normal"
-            )
-
-            start_time_entry.config(
-                state="normal"
-            )
-
-            end_time_entry.config(
-                state="normal"
-            )
-
-            # combobox phải readonly
-            status_entry.config(
-                state="readonly"
-            )
-
-            desc_entry.config(
-                state="normal"
-            )
-
-        # =================================================
-        # DISABLE
-        # =================================================
-        else:
-
-            dept_entry.config(
-                state="disabled"
-            )
-
-            device_entry.config(
-                state="disabled"
-            )
-
-            start_time_entry.config(
-                state="disabled"
-            )
-
-            end_time_entry.config(
-                state="disabled"
-            )
-
-            status_entry.config(
-                state="disabled"
-            )
-
-            desc_entry.config(
-                state="disabled"
-            )
+        dept_entry.config(state=state_normal)
+        device_entry.config(state=state_normal)
+        # tkcalendar dùng readonly để người dùng chỉ bấm chọn lịch chứ không gõ tay bậy bạ vào được
+        start_date_entry.config(state="readonly" if is_not_confirmed else "disabled") 
+        start_time_entry.config(state=state_normal)
+        end_date_entry.config(state="readonly" if is_not_confirmed else "disabled")
+        end_time_entry.config(state=state_normal)
+        status_entry.config(state=state_readonly)
+        desc_entry.config(state=state_normal)
 
     new_window.update_idletasks()
-
-    # =================================================
-    # UPDATE UI
 
     # =====================================================
     # RADIO BUTTON
     # =====================================================
-    rb_confirm = tk.Radiobutton(
-    confirm_frame,
-    text="Đã confirm",
-    variable=confirm_var,
-    value="confirmed",
-    bg="white",
-    font=("Arial", 11)
-    )
-
-    rb_not_confirm = tk.Radiobutton(
-        confirm_frame,
-        text="Chưa confirm",
-        variable=confirm_var,
-        value="not_confirmed",
-        bg="white",
-        font=("Arial", 11)
-    )
-
-    rb_confirm.pack(
-        anchor="w",
-        padx=10,
-        pady=2
-    )
-
-    rb_not_confirm.pack(
-        anchor="w",
-        padx=10,
-        pady=2
-    )
+    rb_confirm = tk.Radiobutton(confirm_frame, text="Đã confirm", variable=confirm_var, value="confirmed", bg="white", font=("Arial", 11))
+    rb_not_confirm = tk.Radiobutton(confirm_frame, text="Chưa confirm", variable=confirm_var, value="not_confirmed", bg="white", font=("Arial", 11))
+    
+    rb_confirm.pack(anchor="w", padx=10, pady=2)
+    rb_not_confirm.pack(anchor="w", padx=10, pady=2)
 
     toggle_entry_fields()
 
@@ -2839,255 +2644,119 @@ def create_new_window_status(title, content=None):
     # HANDLE OK
     # =====================================================
     def handle_ok():
-
-        # =============================================
-        # ĐÃ CONFIRM
-        # =============================================
         if confirm_var.get() != "not_confirmed":
-
             new_window.destroy()
-
             return
 
         # =============================================
         # GET INPUT
         # =============================================
         dept = dept_entry.get().strip()
-
         device = device_entry.get().strip()
-
         status_val = status_entry.get().strip()
-
-        start_time_str = (
-            start_time_entry.get().strip()
-        )
-
-        end_time_str = (
-            end_time_entry.get().strip()
-        )
-
-        desc = desc_entry.get(
-            "1.0",
-            tk.END
-        ).strip()
-
-        # =============================================
-        # VALIDATE REQUIRED FIELD
-        # =============================================
-        if not dept:
-
-            messagebox.showwarning(
-                "Thiếu dữ liệu",
-                "Vui lòng nhập tên bộ phận."
-            )
-
-            return
-
-        if not device:
-
-            messagebox.showwarning(
-                "Thiếu dữ liệu",
-                "Vui lòng nhập tên thiết bị."
-            )
-
-            return
-
         if status_val == "Không chọn":
+            status_val = ""
 
-            messagebox.showwarning(
-                "Thiếu dữ liệu",
-                "Vui lòng chọn tình trạng."
-            )
-
-            return
+        # Lấy giá trị chuỗi ngày theo định dạng dd/mm/yyyy từ bảng lịch
+        start_date_str = start_date_entry.get() 
+        start_time_str = start_time_entry.get().strip()
+        end_date_str = end_date_entry.get()
+        end_time_str = end_time_entry.get().strip()
+        desc = desc_entry.get("1.0", tk.END).strip()
 
         # =============================================
-        # CALCULATE PROCESS TIME
+        # CALCULATE PROCESS TIME (Only if time is provided)
         # =============================================
         time_process = ""
+        if start_time_str and end_time_str:
+            try:
+                fmt = "%d/%m/%Y %H:%M"
+                start_dt = datetime.datetime.strptime(f"{start_date_str} {start_time_str}", fmt)
+                end_dt = datetime.datetime.strptime(f"{end_date_str} {end_time_str}", fmt)
 
-        try:
+                diff_minutes = int((end_dt - start_dt).total_seconds() / 60)
 
-            if (
-                start_time_str
-                and end_time_str
-            ):
-
-                fmt = "%H:%M"
-
-                start_dt = datetime.datetime.strptime(
-                    start_time_str,
-                    fmt
-                )
-
-                end_dt = datetime.datetime.strptime(
-                    end_time_str,
-                    fmt
-                )
-
-                diff_minutes = int(
-                    (
-                        end_dt - start_dt
-                    ).total_seconds() / 60
-                )
-
-                # qua ngày
+                # Cảnh báo nếu chọn ngày kết thúc bé hơn ngày bắt đầu
                 if diff_minutes < 0:
+                    messagebox.showwarning("Lỗi logic", "Thời gian kết thúc không thể nhỏ hơn thời gian bắt đầu!")
+                    return
 
-                    diff_minutes += 24 * 60
+                time_process = f"{diff_minutes} phút ({start_time_str} {start_date_str} - {end_time_str} {end_date_str})"
+            
+            except ValueError:
+                messagebox.showwarning("Sai định dạng giờ", "Vui lòng nhập đúng định dạng giờ HH:MM (VD: 09:30)")
+                return
 
-                time_process = (
-                    f"{diff_minutes} phút "
-                    f"({start_time_str} - {end_time_str})"
-                )
-
-        except ValueError:
-
-            messagebox.showwarning(
-                "Sai định dạng giờ",
-                "Vui lòng nhập đúng định dạng HH:MM"
-            )
-
-            return
-
+        # =========================================
+        # FIND & READ TEMPLATE
+        # =========================================
         try:
-
-            # =========================================
-            # FIND TEMPLATE
-            # =========================================
             target_file = None
-
-            for filename in os.listdir(
-                REPORT_FORM_DIR
-            ):
-
-                if (
-                    CONFIRM_SAMPLE_KEYWORD
-                    in filename.upper()
-                ):
-
-                    target_file = os.path.join(
-                        REPORT_FORM_DIR,
-                        filename
-                    )
-
+            for filename in os.listdir(REPORT_FORM_DIR):
+                if CONFIRM_SAMPLE_KEYWORD in filename.upper():
+                    target_file = os.path.join(REPORT_FORM_DIR, filename)
                     break
 
-            # =========================================
-            # TEMPLATE NOT FOUND
-            # =========================================
             if not target_file:
+                raise FileNotFoundError(f"Không tìm thấy file '{CONFIRM_SAMPLE_KEYWORD}'")
 
-                raise FileNotFoundError(
-                    f"Không tìm thấy file "
-                    f"'{CONFIRM_SAMPLE_KEYWORD}'"
-                )
-
-            # =========================================
-            # READ TEMPLATE
-            # =========================================
-            with open(
-                target_file,
-                "r",
-                encoding="utf-8",
-                errors="ignore"
-            ) as f:
-
+            with open(target_file, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
 
             # =========================================
-            # REPLACE PLACEHOLDER
+            # REPLACE PLACEHOLDER 
+            # Dùng DELETE_THIS_LINE nếu trường bị trống
             # =========================================
+            marker = "DELETE_THIS_LINE"
             replacements = {
-
-                "[tilte]": dept,
-                "[title]": dept,
-                "[department]": dept,
-                "[device]": device,
-                "[status]": status_val,
-                "[time_process]": time_process,
-                "[description]": desc
+                "[tilte]": dept if dept else marker,
+                "[title]": dept if dept else marker,
+                "[department]": dept if dept else marker,
+                "[device]": device if device else marker,
+                "[status]": status_val if status_val else marker,
+                "[time_process]": time_process if time_process else marker,
+                "[description]": desc if desc else marker
             }
 
             for key, value in replacements.items():
-
-                content = content.replace(
-                    key,
-                    value
-                )
+                content = content.replace(key, value)
 
             # =========================================
-            # REMOVE EMPTY LINE
+            # XÓA CÁC DÒNG CHỨA DỮ LIỆU TRỐNG
             # =========================================
             cleaned_lines = []
-
             for line in content.splitlines():
-
+                if marker in line:
+                    continue  
                 if line.strip():
+                    cleaned_lines.append(line.strip())
 
-                    cleaned_lines.append(
-                        line.strip()
-                    )
-
-            content = "\n".join(
-                cleaned_lines
-            )
+            content = "\n".join(cleaned_lines)
 
         except Exception as e:
-
-            messagebox.showerror(
-                "Lỗi",
-                f"Lỗi xử lý file:\n{e}"
-            )
-
+            messagebox.showerror("Lỗi", f"Lỗi xử lý file:\n{e}")
             return
 
         # =============================================
         # SHOW CONTENT
         # =============================================
-        output_text.config(
-            state="normal"
-        )
-
-        output_text.delete(
-            "1.0",
-            tk.END
-        )
-
-        output_text.insert(
-            tk.END,
-            content
-        )
-
-        output_text.config(
-            state="disabled"
-        )
+        output_text.config(state="normal")
+        output_text.delete("1.0", tk.END)
+        output_text.insert(tk.END, content)
+        output_text.config(state="disabled")
 
         # =============================================
-        # FILL BOX
+        # FILL BOX & CLOSE WINDOW
         # =============================================
         fill_box(2)
-
-        # =============================================
-        # CLOSE WINDOW
-        # =============================================
         new_window.destroy()
 
     # =====================================================
     # OK BUTTON
     # =====================================================
-    ok_button = tk.Button(
-        new_window,
-        text="OK",
-        font=("Arial", 12, "bold"),
-        bg="green",
-        fg="white",
-        command=handle_ok
-    )
+    ok_button = tk.Button(new_window, text="OK", font=("Arial", 12, "bold"), bg="green", fg="white", command=handle_ok)
+    ok_button.pack(pady=10)
 
-    ok_button.pack(
-        pady=10
-    )
 # == Cửa sổ note ==
 schedule_running = False
 schedule_after_id = None
