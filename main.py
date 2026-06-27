@@ -1035,7 +1035,7 @@ def on_category_click():
     elif green_count == 2:
         update_hint("Tiếp tục theo dõi và cập nhật sự cố liên tục. Nếu như sau một khoảng thời gian không nhận được thông tin gì từ phía bên Site kể từ thời điểm đã liên hệ với Site (1 - 2 tiếng) và đã thông tin lên group chung (). Tiến hành liên hệ lại với Site để xác minh tình trạng kiếm tra thiết bị và nguyên nhân (nếu có). Tiến hành cập nhập lại tình hình thiết bị lên nhóm group chung về tình hình khắc phục trình trạng hiện tại của thiết bị gây lỗi.")
     elif green_count == 3:
-        update_hint("Nếu sự cố sau 1 tiếng cho đến 2 tiếng vẫn chưa được sự xử lí và cũng chưa được cập nhật lên group chung. Tiến hành liên hệ lại với số điện thoại ưu tiên để xác nhận lại sự cố, sau đó báo cáo lại tình hiên fleen group chung (Bấm 'Xác nhận' nếu sự cố đã được giải quyết trước thời điểm này).")
+        update_hint("Nếu sự cố sau 1 tiếng cho đến 2 tiếng vẫn chưa được sự xử lí và cũng chưa được cập nhật lên group chung. Tiến hành liên hệ lại với số điện thoại ưu tiên để xác nhận lại sự cố, sau đó báo cáo lại tình hiên lên group chung (Bấm 'Xác nhận' nếu sự cố đã được giải quyết trước thời điểm này).")
     elif green_count == 4:
         update_hint("Khi sự cố đã được giải quyết, báo cáo lên group chung để khách hàng và các bộ phận liên quan nắm thông tin (Bấm 'Xác nhận' nếu có trường hợp ngoại lệ xảy ra).")
     elif green_count == 5:
@@ -1983,23 +1983,18 @@ def hide_sub_buttons(state):
 def show_sub_buttons(area_name, state, auto_select_first=False):
     # CẢI TIẾN: Reset ô tìm kiếm thiết bị về rỗng mỗi khi người dùng đổi Khu vực
     search_device_entry.delete(0, tk.END)
-
     # Xóa giao diện thiết bị cũ
     for widget in device_scrollable_frame.winfo_children():
         widget.destroy()
-        
     try:
         device_canvas.yview_moveto(0)
     except Exception:
         pass
-        
     state["buttons"].clear()
-    
     # CỐT LÕI: Làm sạch danh sách thiết bị cũ để nạp danh sách thiết bị mới
     device_items.clear() 
     devices = REPORT_FORM_MAPPING.get(area_name, {})
     first_child_btn = None
-
     for idx, (device_name, file_path) in enumerate(devices.items()):
         # Tạo block_frame cho từng thiết bị để hỗ trợ việc pack/pack_forget khi lọc
         block_frame = tk.Frame(device_scrollable_frame, bg="white")
@@ -2022,7 +2017,6 @@ def show_sub_buttons(area_name, state, auto_select_first=False):
                 handle_first_box_fill(),
                 show_text_from_local(p, start_timer_flag=True)
             ]
-            
         btn.config(command=cmd)
         btn.pack(fill="x", padx=5, pady=3)
         block_frame.pack(fill="x", padx=5, pady=3)
@@ -2031,10 +2025,8 @@ def show_sub_buttons(area_name, state, auto_select_first=False):
         device_items.append((block_frame, btn)) # Đẩy vào mảng tracking lọc dữ liệu
         if idx == 0:
             first_child_btn = btn
-
     if auto_select_first and first_child_btn:
         first_child_btn.invoke()
-        
     # Cập nhật thanh cuộn thiết bị ban đầu
     device_scrollable_frame.update_idletasks()
     device_canvas.configure(scrollregion=device_canvas.bbox("all"))
@@ -3879,6 +3871,280 @@ def create_documentary_viewer(token, share_url):
 
     update_table()
     root.mainloop()
+# == Cửa sổ tương tác dữ liệu ==
+def create_data_interaction_window(root, title="Cửa sổ tương tác dữ liệu"):
+    # =====================================================
+    # KHỞI TẠO CỬA SỔ
+    # =====================================================
+    new_window = tk.Toplevel(root)
+    new_window.title(title)
+    new_window.geometry("600x420")
+    new_window.configure(bg="white")
+    new_window.transient(root)
+    new_window.grab_set()
+
+    current_files = []
+
+    # =====================================================
+    # DANH SÁCH THƯ MỤC HỆ THỐNG
+    # =====================================================
+    TARGET_FOLDERS = [AEONGMS_DIR, AEONMAXVALU_DIR, REPORT_FORM_DIR]
+
+    # =====================================================
+    # GIAO DIỆN CHÍNH CỦA CỬA SỔ
+    # =====================================================
+    tk.Label(new_window, text="Chọn thư mục làm việc (Folders):", font=("Arial", 11, "bold"), bg="white").pack(pady=(15, 5), padx=20, anchor="w")
+    folder_combo = ttk.Combobox(new_window, values=TARGET_FOLDERS, font=("Arial", 10), state="readonly")
+    folder_combo.pack(padx=20, fill="x", pady=5)
+    folder_combo.set("--- Bấm vào đây để chọn thư mục ---")
+
+    search_frame = tk.Frame(new_window, bg="white")
+    search_frame.pack(padx=20, fill="x", pady=(10, 5))
+    tk.Label(search_frame, text="Tìm tệp tin:", font=("Arial", 10, "bold"), bg="white").pack(side="left")
+    search_entry = tk.Entry(search_frame, font=("Arial", 10), bd=1, relief="solid")
+    search_entry.pack(side="left", padx=(10, 20), fill="x", expand=True)
+    status_label = tk.Label(search_frame, text="Chưa chọn thư mục", font=("Arial", 10, "italic"), bg="white", fg="gray")
+    status_label.pack(side="right")
+
+    tk.Label(new_window, text="Danh sách các tệp tin (Files) trong thư mục:", font=("Arial", 11, "bold"), bg="white").pack(pady=(10, 5), padx=20, anchor="w")
+    file_frame = tk.Frame(new_window, bg="white")
+    file_frame.pack(padx=20, fill="x")
+    file_scrollbar = tk.Scrollbar(file_frame, orient="vertical")
+    file_scrollbar.pack(side="right", fill="y")
+    file_listbox = tk.Listbox(file_frame, font=("Arial", 10), height=4, yscrollcommand=file_scrollbar.set)
+    file_listbox.pack(side="left", fill="x", expand=True)
+    file_scrollbar.config(command=file_listbox.yview)
+
+    # Logic lọc file gốc
+    def filter_files(*args):
+        keyword = search_entry.get().strip().lower()
+        file_listbox.delete(0, tk.END)
+        if not current_files:
+            return
+        filtered_files = [f for f in current_files if keyword in f.lower()]
+        if not filtered_files:
+            file_listbox.insert(tk.END, "(Không tìm thấy tệp tin phù hợp)")
+            status_label.config(text="Đã tìm thấy 0 file liên quan", fg="red")
+        else:
+            for f in filtered_files:
+                file_listbox.insert(tk.END, f)
+            status_label.config(text=f"Đã tìm thấy {len(filtered_files)} file liên quan", fg="#5A780B")
+
+    def on_folder_combo_select(event):
+        nonlocal current_files
+        selected_folder = folder_combo.get()
+        search_entry.delete(0, tk.END)
+        file_listbox.delete(0, tk.END)
+        current_files = []
+        try:
+            items = os.listdir(selected_folder)
+            current_files = [f for f in items if os.path.isfile(os.path.join(selected_folder, f))]
+            filter_files()
+        except Exception:
+            file_listbox.insert(tk.END, "(Lỗi đọc thư mục)")
+            status_label.config(text="Lỗi", fg="red")
+
+    folder_combo.bind("<<ComboboxSelected>>", on_folder_combo_select)
+    search_entry.bind("<KeyRelease>", filter_files)
+
+    # =====================================================
+    # LOGIC MỚI: TÌM TỪ KHÓA CHUNG / KHÁC BIỆT GIỮA CÁC FILE
+    # =====================================================
+    def get_batch_diff_content(folder_path, file_names):
+        if not file_names: 
+            return "📌 KHÔNG CÓ FILE NÀO ĐƯỢC CHỌN.\n"
+            
+        files_lines = []
+        try:
+            for filename in file_names:
+                filepath = os.path.join(folder_path, filename)
+                # Đọc toàn bộ dòng của từng file
+                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                    files_lines.append(f.read().splitlines())
+        except Exception as e:
+            return f"❌ Lỗi khi đọc file: {str(e)}"
+                
+        if not files_lines: return "📌 KHÔNG ĐỌC ĐƯỢC NỘI DUNG.\n"
+            
+        # Tìm số lượng dòng ngắn nhất và dài nhất trong tất cả các file
+        min_lines = min(len(lines) for lines in files_lines)
+        max_lines = max(len(lines) for lines in files_lines)
+            
+        result_lines = []
+        
+        # Biến đếm để tính toán tỉ lệ giống nhau
+        total_matches = 0
+        total_words = 0
+        
+        for i in range(min_lines):
+            # Lấy dòng thứ i của tất cả các file
+            lines_at_i = [f_lines[i] for f_lines in files_lines]
+                
+            # Tách dòng thành các từ (từ khóa) cách nhau bởi khoảng trắng
+            words_list = [line.split() for line in lines_at_i]
+                
+            # Nếu tất cả các file đều là dòng trống
+            if all(not w for w in words_list):
+                result_lines.append("")
+                continue
+                    
+            min_words = min(len(w) for w in words_list)
+            max_words = max(len(w) for w in words_list)
+            
+            # Cộng dồn số từ nhiều nhất vào tổng số từ của dòng này
+            total_words += max_words
+                
+            line_result = []
+            for j in range(min_words):
+                first_word = words_list[0][j]
+                # Kiểm tra xem từ ở vị trí j có giống nhau ở tất cả các file không
+                if all(w_list[j] == first_word for w_list in words_list):
+                    line_result.append(first_word)
+                    total_matches += 1  # Tăng biến đếm nếu từ khóa khớp hoàn toàn
+                else:
+                    # Gộp các [different keyword] liền kề lại cho đỡ rối mắt
+                    if not line_result or line_result[-1] != "[different keyword]":
+                        line_result.append("[different keyword]")
+                
+            # Nếu có file dài hơn (dư từ khóa ở cuối dòng)
+            if max_words > min_words:
+                if not line_result or line_result[-1] != "[different keyword]":
+                    line_result.append("[different keyword]")
+                        
+            result_lines.append(" ".join(line_result))
+                
+        # Nếu có file nhiều dòng hơn file khác
+        if max_lines > min_lines:
+            # Cộng thêm trọng số khác biệt cho các dòng chênh lệch
+            total_words += (max_lines - min_lines)
+            result_lines.append("\n... [different keyword] (Các file có số lượng dòng khác nhau) ...")
+            
+        # -----------------------------------------------------------
+        # LOGIC CẢNH BÁO: Kiểm tra cấu trúc và nội dung hoàn toàn khác nhau
+        # Nếu tổng số từ > 0 và tỉ lệ giống nhau < 15% (0.15)
+        # -----------------------------------------------------------
+        if total_words > 0 and (total_matches / total_words) < 0.15:
+            return "📌 Có nhiều file nội dung khác nhau, vui lòng lọc lại."
+                
+        return "\n".join(result_lines)
+
+    # =====================================================
+    # GIAO DIỆN UPDATE
+    # =====================================================
+    def open_update_window():
+        filtered_files = file_listbox.get(0, tk.END)
+        if not filtered_files or filtered_files[0].startswith("("):
+            messagebox.showwarning("Cảnh báo", "Không có tệp tin hợp lệ nào để cập nhật!")
+            return
+
+        selected_folder = folder_combo.get()
+
+        upd_window = tk.Toplevel(new_window)
+        upd_window.title("Cập nhật nội dung File")
+        upd_window.geometry("750x450")
+        upd_window.configure(bg="#f4f4f4")
+        upd_window.transient(new_window)
+        upd_window.grab_set()
+
+        # --- BÊN TRÁI: DANH SÁCH FILE ---
+        left_frame = tk.Frame(upd_window, bg="white", bd=1, relief="solid")
+        left_frame.pack(side="left", fill="y", padx=15, pady=15)
+        tk.Label(left_frame, text="Danh sách file đã lọc", font=("Arial", 11, "bold"), bg="white").pack(pady=5)
+        
+        upd_listbox_frame = tk.Frame(left_frame)
+        upd_listbox_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        upd_scroll = tk.Scrollbar(upd_listbox_frame, orient="vertical")
+        upd_scroll.pack(side="right", fill="y")
+        upd_listbox = tk.Listbox(upd_listbox_frame, width=35, yscrollcommand=upd_scroll.set, font=("Arial", 10))
+        upd_listbox.pack(side="left", fill="both", expand=True)
+        upd_scroll.config(command=upd_listbox.yview)
+
+        for f in filtered_files:
+            upd_listbox.insert(tk.END, f)
+
+        # --- BÊN PHẢI: KHU VỰC THAO TÁC ---
+        right_frame = tk.Frame(upd_window, bg="#f4f4f4")
+        right_frame.pack(side="left", fill="both", expand=True, padx=(0, 15), pady=15)
+
+        top_right_frame = tk.Frame(right_frame, bg="#f4f4f4")
+        top_right_frame.pack(fill="x", pady=(0, 10))
+
+        # --- COMBOBOX THAY THẾ CHO RADIOBUTTON ---
+        radio_frame = tk.Frame(top_right_frame, bg="#f4f4f4")
+        radio_frame.pack(side="left")
+        
+        tk.Label(radio_frame, text="Chế độ:", font=("Arial", 10, "bold"), bg="#f4f4f4").pack(side="left", padx=(0, 5))
+        mode_combo = ttk.Combobox(radio_frame, values=["1 File", "Hàng loạt"], state="readonly", width=12, font=("Arial", 10))
+        mode_combo.set("1 File")
+        mode_combo.pack(side="left")
+
+        btn_action_frame = tk.Frame(top_right_frame, bg="#f4f4f4")
+        btn_action_frame.pack(side="right", anchor="n")
+        tk.Button(btn_action_frame, text="Sửa", width=10, bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(side="left", padx=5)
+        tk.Button(btn_action_frame, text="Xóa", width=10, bg="#F44336", fg="white", font=("Arial", 10, "bold")).pack(side="left", padx=5)
+
+        content_frame = tk.LabelFrame(right_frame, text=" Hiển thị nội dung trong file được chọn ", font=("Arial", 10, "bold"), bg="white", bd=1, relief="solid")
+        content_frame.pack(fill="both", expand=True)
+
+        content_text = tk.Text(content_frame, font=("Consolas", 10), wrap="word")
+        content_text.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # --- LOGIC ĐIỀU KHIỂN CHẾ ĐỘ ---
+        def handle_mode_change(*args):
+            mode = mode_combo.get()
+            content_text.config(state=tk.NORMAL)
+            content_text.delete("1.0", tk.END)
+
+            if mode == "1 File":
+                content_text.insert(tk.END, "👉 Hãy chọn một file bên trái để xem nội dung...")
+                content_text.config(state=tk.DISABLED) 
+
+            elif mode == "Hàng loạt":
+                upd_listbox.selection_clear(0, tk.END)
+                
+                content_text.insert(tk.END, "⏳ Đang quét dữ liệu, phân tích khác biệt...\n\n")
+                upd_window.update() 
+                
+                content_text.delete("1.0", tk.END)
+                common_text = get_batch_diff_content(selected_folder, filtered_files)
+                content_text.insert(tk.END, "--- NỘI DUNG TỔNG HỢP (HÀNG LOẠT) ---\n\n" + common_text)
+                
+                content_text.config(state=tk.DISABLED)
+
+        # Gắn sự kiện khi đổi giá trị Combobox
+        mode_combo.bind("<<ComboboxSelected>>", handle_mode_change)
+
+        # Bắt sự kiện khi click vào một tệp tin trong danh sách ở chế độ 1 File
+        def on_upd_listbox_select(event):
+            if mode_combo.get() == "1 File":
+                selection = upd_listbox.curselection()
+                if not selection: return
+                
+                selected_filename = upd_listbox.get(selection[0])
+                filepath = os.path.join(selected_folder, selected_filename)
+                
+                content_text.config(state=tk.NORMAL)
+                content_text.delete("1.0", tk.END)
+                
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        file_content = f.read()
+                        content_text.insert(tk.END, file_content)
+                except Exception as e:
+                    content_text.insert(tk.END, f"❌ Lỗi khi mở file: {str(e)}")
+
+        upd_listbox.bind("<<ListboxSelect>>", on_upd_listbox_select)
+        
+        # Khởi chạy logic lúc mới bật form Update
+        handle_mode_change()
+
+    # =====================================================
+    # NÚT ĐIỀU KHIỂN MAIN WINDOW
+    # =====================================================
+    control_frame = tk.Frame(new_window, bg="white")
+    control_frame.pack(pady=20)
+    tk.Button(control_frame, text="Update", font=("Arial", 11, "bold"), bg="#4a90e2", fg="white", width=12, command=open_update_window).pack(side="left", padx=10)
+    tk.Button(control_frame, text="Đóng", font=("Arial", 11), bg="#ff4c4c", fg="white", width=12, command=new_window.destroy).pack(side="left", padx=10)
 
 # === Khu vực tạo các thành phần =======================================================================================================================================
 copy_button = tk.Button(left_controls, text="Copy", font=("Arial", 10, "bold"), bg="#4CAF50", fg="white",
@@ -3932,8 +4198,8 @@ note_button.pack(pady=5)
 
 # ==== NÚT KHO ẢNH DAVITEQ ====
 def image_daviteq_action():
-    create_new_window_image_daviteq("DAVITEQ")
-image_daviteq_button = tk.Button(left_button_frame, text="DAVITEQ", font=("Arial", 12, "bold"),
+    create_new_window_image_daviteq("IMAGE")
+image_daviteq_button = tk.Button(left_button_frame, text="IMAGE", font=("Arial", 12, "bold"),
                                  bg="#3fc4f3", fg="white", width=10, command=lambda: image_daviteq_action())
 image_daviteq_button.pack(pady=5)
 
@@ -3948,6 +4214,22 @@ rmc_drive_viewer_button = tk.Button(
     command=rmc_drive_viewer_action
 )
 rmc_drive_viewer_button.pack(pady=5)
+
+# ==== NÚT vào DATA INTERACT ====
+def rmc_date_interact_action():
+    # Phải truyền biến 'root' vào để hàm nhận diện được cửa sổ chính
+    create_data_interaction_window(root)
+
+rmc_date_interact_button = tk.Button(
+    left_button_frame,
+    text="DATA",
+    font=("Arial", 12, "bold"),
+    bg="#9d00ff",
+    fg="white",
+    width=10,
+    command=rmc_date_interact_action
+)
+rmc_date_interact_button.pack(pady=5)
 
 # ==== NÚT XÁC NHẬN HÀNH ĐỘNG ====
 def confirm_action():
