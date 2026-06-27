@@ -4029,7 +4029,7 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
         return "\n".join(result_lines)
 
     # =====================================================
-    # GIAO DIỆN UPDATE
+    # GIAO DIỆN UPDATE (NÂNG CẤP CHỌN FILE BẰNG MÀU SẮC)
     # =====================================================
     def open_update_window():
         filtered_files = file_listbox.get(0, tk.END)
@@ -4055,7 +4055,9 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
         upd_listbox_frame.pack(fill="both", expand=True, padx=5, pady=5)
         upd_scroll = tk.Scrollbar(upd_listbox_frame, orient="vertical")
         upd_scroll.pack(side="right", fill="y")
-        upd_listbox = tk.Listbox(upd_listbox_frame, width=35, yscrollcommand=upd_scroll.set, font=("Arial", 10))
+        
+        # exportselection=False giúp giữ nguyên màu sắc tùy chỉnh khi click
+        upd_listbox = tk.Listbox(upd_listbox_frame, width=35, yscrollcommand=upd_scroll.set, font=("Arial", 10), exportselection=False)
         upd_listbox.pack(side="left", fill="both", expand=True)
         upd_scroll.config(command=upd_listbox.yview)
 
@@ -4069,7 +4071,6 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
         top_right_frame = tk.Frame(right_frame, bg="#f4f4f4")
         top_right_frame.pack(fill="x", pady=(0, 10))
 
-        # --- COMBOBOX THAY THẾ CHO RADIOBUTTON ---
         radio_frame = tk.Frame(top_right_frame, bg="#f4f4f4")
         radio_frame.pack(side="left")
         
@@ -4089,6 +4090,29 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
         content_text = tk.Text(content_frame, font=("Consolas", 10), wrap="word")
         content_text.pack(fill="both", expand=True, padx=5, pady=5)
 
+        # --- HÀM CẬP NHẬT VIEW DÀNH RIÊNG CHO CHẾ ĐỘ HÀNG LOẠT ---
+        def update_batch_view():
+            content_text.config(state=tk.NORMAL)
+            content_text.delete("1.0", tk.END)
+            content_text.insert(tk.END, "⏳ Đang quét dữ liệu, phân tích khác biệt...\n\n")
+            upd_window.update() 
+            
+            # Chỉ lấy những file có màu chữ là green (màu xanh lá)
+            active_files = []
+            for i in range(upd_listbox.size()):
+                if upd_listbox.itemcget(i, 'fg') == 'green':
+                    active_files.append(upd_listbox.get(i))
+                    
+            content_text.delete("1.0", tk.END)
+            
+            if not active_files:
+                content_text.insert(tk.END, "📌 KHÔNG CÓ FILE NÀO ĐANG ĐƯỢC CHỌN (TẤT CẢ ĐỀU MÀU ĐỎ).")
+            else:
+                common_text = get_batch_diff_content(selected_folder, active_files)
+                content_text.insert(tk.END, "--- NỘI DUNG TỔNG HỢP (HÀNG LOẠT) ---\n\n" + common_text)
+                
+            content_text.config(state=tk.DISABLED)
+
         # --- LOGIC ĐIỀU KHIỂN CHẾ ĐỘ ---
         def handle_mode_change(*args):
             mode = mode_combo.get()
@@ -4096,46 +4120,60 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
             content_text.delete("1.0", tk.END)
 
             if mode == "1 File":
+                # Khôi phục màu sắc mặc định cho toàn bộ listbox
+                for i in range(upd_listbox.size()):
+                    upd_listbox.itemconfig(i, {'bg': 'white', 'fg': 'black'})
+                    
                 content_text.insert(tk.END, "👉 Hãy chọn một file bên trái để xem nội dung...")
                 content_text.config(state=tk.DISABLED) 
 
             elif mode == "Hàng loạt":
+                # Chuyển toàn bộ listbox sang màu xanh lá (được chọn)
+                for i in range(upd_listbox.size()):
+                    upd_listbox.itemconfig(i, {'bg': '#e8f5e9', 'fg': 'green'})
+                    
                 upd_listbox.selection_clear(0, tk.END)
-                
-                content_text.insert(tk.END, "⏳ Đang quét dữ liệu, phân tích khác biệt...\n\n")
-                upd_window.update() 
-                
-                content_text.delete("1.0", tk.END)
-                common_text = get_batch_diff_content(selected_folder, filtered_files)
-                content_text.insert(tk.END, "--- NỘI DUNG TỔNG HỢP (HÀNG LOẠT) ---\n\n" + common_text)
-                
-                content_text.config(state=tk.DISABLED)
+                update_batch_view()
 
-        # Gắn sự kiện khi đổi giá trị Combobox
         mode_combo.bind("<<ComboboxSelected>>", handle_mode_change)
 
-        # Bắt sự kiện khi click vào một tệp tin trong danh sách ở chế độ 1 File
+        # --- SỰ KIỆN CLICK VÀO FILE ---
         def on_upd_listbox_select(event):
+            selection = upd_listbox.curselection()
+            if not selection: return
+            
+            index = selection[0]
+            selected_filename = upd_listbox.get(index)
+            filepath = os.path.join(selected_folder, selected_filename)
+            
             if mode_combo.get() == "1 File":
-                selection = upd_listbox.curselection()
-                if not selection: return
-                
-                selected_filename = upd_listbox.get(selection[0])
-                filepath = os.path.join(selected_folder, selected_filename)
-                
+                # Xử lý như bình thường: Mở 1 file
                 content_text.config(state=tk.NORMAL)
                 content_text.delete("1.0", tk.END)
-                
                 try:
                     with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                         file_content = f.read()
                         content_text.insert(tk.END, file_content)
                 except Exception as e:
                     content_text.insert(tk.END, f"❌ Lỗi khi mở file: {str(e)}")
+                    
+            elif mode_combo.get() == "Hàng loạt":
+                # Đổi màu trạng thái (Xanh lá <-> Đỏ)
+                current_fg = upd_listbox.itemcget(index, 'fg')
+                if current_fg == 'green':
+                    upd_listbox.itemconfig(index, {'bg': '#ffebee', 'fg': 'red'}) # Đỏ
+                else:
+                    upd_listbox.itemconfig(index, {'bg': '#e8f5e9', 'fg': 'green'}) # Xanh
+                
+                # Bỏ vùng chọn mặc định để hiển thị màu sắc rõ nét hơn
+                upd_listbox.selection_clear(0, tk.END)
+                
+                # Phân tích lại những file đang có màu xanh
+                update_batch_view()
 
         upd_listbox.bind("<<ListboxSelect>>", on_upd_listbox_select)
         
-        # Khởi chạy logic lúc mới bật form Update
+        # Chạy logic khởi tạo chế độ khi mới mở cửa sổ
         handle_mode_change()
 
     # =====================================================
