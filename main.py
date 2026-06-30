@@ -1467,7 +1467,8 @@ def show_text_from_local(file_path, is_no_error=False, start_timer_flag=True):
         # =============================================
         if is_no_error:
             yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
-            timestamp = yesterday.strftime("Trong ngày: %d-%m-%Y ") + '\n'
+            # ✅ SỬA Ở ĐÂY: Tách "Trong ngày: " ra ngoài strftime
+            timestamp = "Trong ngày: " + yesterday.strftime("%d-%m-%Y ") + '\n'
             lines = [
                 timestamp if '[no_error_time]' in line else line 
                 for line in lines
@@ -1478,7 +1479,8 @@ def show_text_from_local(file_path, is_no_error=False, start_timer_flag=True):
         # =============================================
         else:
             delayed_time = datetime.datetime.now() - datetime.timedelta(minutes=1)
-            current_time = delayed_time.strftime("+ Thời gian: %H:%M:%S %d-%m-%Y ") + '\n'
+            # ✅ SỬA Ở ĐÂY: Tách "+ Thời gian: " ra ngoài strftime để tránh lỗi UnicodeEncodeError
+            current_time = "+ Thời gian: " + delayed_time.strftime("%H:%M:%S %d-%m-%Y ") + '\n'
             lines = [
                 current_time if '[time]' in line else line 
                 for line in lines
@@ -4516,4 +4518,3 @@ show_startup_window()
 # ==== CHẠY ỨNG DỤNG ====
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
-
