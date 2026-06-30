@@ -1456,63 +1456,49 @@ def refresh_report_mapping():
 # =========================================================
 # SHOW TEXT FROM LOCAL FILE
 # =========================================================
-def show_text_from_local(
-    file_path,
-    is_no_error=False,
-    start_timer_flag=True
-):
+def show_text_from_local(file_path, is_no_error=False, start_timer_flag=True):
     try:
-        with open(file_path,'r',encoding='utf-8',errors='ignore'
-        ) as f:
+        # Sử dụng errors='replace' để các ký tự lỗi hiển thị thành '' thay vì văng lỗi hoặc mất chữ
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
             lines = f.readlines()
+            
         # =============================================
         # NO ERROR
         # =============================================
         if is_no_error:
-            yesterday = (
-                datetime.datetime.now()
-                - datetime.timedelta(days=1)
-            )
-            timestamp = (
-                yesterday.strftime(
-                    "Trong ngày: %d-%m-%Y "
-                ) + '\n'
-            )
+            yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
+            timestamp = yesterday.strftime("Trong ngày: %d-%m-%Y ") + '\n'
             lines = [
-                timestamp
-                if '[no_error_time]' in line
-                else line
+                timestamp if '[no_error_time]' in line else line 
                 for line in lines
             ]
+            
         # =============================================
         # NORMAL
         # =============================================
         else:
-            delayed_time = (
-                datetime.datetime.now()
-                - datetime.timedelta(minutes=1)
-            )
-            current_time = (
-                delayed_time.strftime(
-                    "+ Thời gian: %H:%M:%S %d-%m-%Y "
-                ) + '\n'
-            )
+            delayed_time = datetime.datetime.now() - datetime.timedelta(minutes=1)
+            current_time = delayed_time.strftime("+ Thời gian: %H:%M:%S %d-%m-%Y ") + '\n'
             lines = [
-                current_time
-                if '[time]' in line
-                else line
+                current_time if '[time]' in line else line 
                 for line in lines
             ]
+            
         content = ''.join(lines)
-    except Exception as e:
-        content = f"Không thể mở file: {e}"
+        
+    except Exception:
+        import traceback
+        content = traceback.format_exc()
+
+    # ✅ Encode an toàn trước khi hiển thị để đảm bảo tương thích Tkinter
+    safe_content = content.encode("utf-8", errors="replace").decode("utf-8")
+
+    # Hiển thị lên UI
     output_text.config(state='normal')
     output_text.delete("1.0", tk.END)
-    output_text.insert(
-        tk.END,
-        content
-    )
+    output_text.insert(tk.END, safe_content)
     output_text.config(state='disabled')
+
     if start_timer_flag:
         start_timer()
 
@@ -4530,3 +4516,4 @@ show_startup_window()
 # ==== CHẠY ỨNG DỤNG ====
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
+
