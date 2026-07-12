@@ -4422,30 +4422,14 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
         cloud_win.transient(new_window)
         cloud_win.grab_set()
 
-        cols = ("stt","name","download_date","local_update")
-        tree = ttk.Treeview(cloud_win, columns=cols, show="headings")
-        tree.heading("stt", text="STT")
-        tree.heading("name", text="Tên file")
-        tree.heading("download_date", text="Ngày tải về (remote)")
-        tree.heading("local_update", text="Ngày local update")
-        tree.column("stt", width=50, anchor="center")
-        tree.column("name", width=350)
-        tree.column("download_date", width=180)
-        tree.column("local_update", width=180)
-        # add search bar for cloud view
         # documentary-style text view with search+highlight
         search_frame_cloud = tk.Frame(cloud_win)
-        search_frame_cloud.pack(fill="x", padx=10, pady=(6,0))
-        tk.Label(search_frame_cloud, text="Tìm từ khóa:", bg=cloud_win.cget('bg')).pack(side="left")
         search_frame_cloud.pack(pady=5, padx=5, fill="x")
         tk.Label(search_frame_cloud, text="Tìm từ khóa:", font=("Arial", 10), bg=cloud_win.cget('bg')).pack(side="left")
         search_var_cloud = tk.StringVar()
-        search_entry_cloud = tk.Entry(search_frame_cloud, textvariable=search_var_cloud)
-        search_entry_cloud.pack(side="left", fill="x", expand=True, padx=(8,0))
         entry_search_cloud = tk.Entry(search_frame_cloud, textvariable=search_var_cloud, font=("Arial", 10), width=60)
         entry_search_cloud.pack(side="left", padx=8, fill="x", expand=True)
 
-        tree.pack(fill="both", expand=True, padx=10, pady=10)
         frame_table_cloud = tk.Frame(cloud_win)
         frame_table_cloud.pack(pady=6, fill="both", expand=True)
         scrollbar_cloud = tk.Scrollbar(frame_table_cloud)
@@ -4513,11 +4497,6 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                 'fullpath': fullpath
             })
 
-        # configure tag for highlighting matches
-        try:
-            tree.tag_configure('match', background='#fff59d')
-        except Exception:
-            pass
         # configure text tags
         text_widget_cloud.tag_config(
             "highlight",
@@ -4568,13 +4547,6 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                 line_num = idx + 1
                 text_widget_cloud.insert(tk.END, line, row_tag)
 
-        def populate_tree(records, match_names=None):
-            tree.delete(*tree.get_children())
-            for idx, rec in enumerate(records, start=1):
-                tags = ()
-                if match_names and rec.get('name') in match_names:
-                    tags = ('match',)
-                tree.insert("", tk.END, values=(idx, rec['name'], rec['download'] or "", rec['local_update'] or ""), tags=tags)
                 if keyword:
                     name_lower = name.lower()
                     for word in keyword.split():
@@ -4584,44 +4556,15 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                             real_end = prefix_len + match.end()
                             text_widget_cloud.tag_add("highlight", f"{line_num}.{real_start}", f"{line_num}.{real_end}")
 
-        def on_search_cloud(event=None):
-            kw = search_var_cloud.get().strip().lower()
-            if not kw:
-                populate_tree(file_records)
-                return
-            import re
-            kw_norm = re.sub(r"[^0-9a-z]", "", kw.lower())
-            matched = []
-            unmatched = []
-            for r in file_records:
-                name = (r.get('name') or '')
-                name_norm = re.sub(r"[^0-9a-z]", "", name.lower())
-                if kw_norm and kw_norm in name_norm:
-                    matched.append(r)
-                else:
-                    unmatched.append(r)
-            all_records = matched + unmatched
-            match_names = set([r['name'] for r in matched])
-            populate_tree(all_records, match_names=match_names)
             text_widget_cloud.tag_raise("highlight")
             text_widget_cloud.config(state="disabled")
 
-        populate_tree(file_records)
-        search_entry_cloud.bind('<KeyRelease>', on_search_cloud)
-        search_entry_cloud.bind('<Return>', on_search_cloud)
         entry_search_cloud.bind('<KeyRelease>', update_cloud_table)
         entry_search_cloud.bind('<Return>', update_cloud_table)
         update_cloud_table()
 
         # Cloud update action: push local-updated files to OneDrive using folder_index entries
         def perform_cloud_update():
-            to_update = []
-            for item in tree.get_children():
-                vals = tree.item(item, 'values')
-                fname = vals[1]
-                local_upd = vals[3]
-                if local_upd:
-                    to_update.append(fname)
             # Collect files displayed that have local_update
             to_update = [rec['name'] for rec in filtered_files if rec.get('local_update')]
 
@@ -4639,8 +4582,6 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                 fullpath = os.path.join(selected_folder, fname)
                 # find entry
                 entry = None
-                for k,v in folder_index.items():
-                    lp = v.get('local_path','')
                 key = None
                 for k, v in folder_index.items():
                     lp = v.get('local_path', '')
@@ -4649,8 +4590,6 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                         key = k
                         break
                 if not entry:
-                    for k,v in folder_index.items():
-                        if v.get('name','') == fname:
                     for k, v in folder_index.items():
                         if v.get('name', '') == fname:
                             entry = v
@@ -4671,7 +4610,6 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                     if ok:
                         success += 1
                         # update folder_index timestamp
-                        # use timezone-aware UTC to avoid DeprecationWarning
                         new_iso = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
                         if key:
                             folder_index[key]['lastModifiedDateTime'] = new_iso
@@ -4975,4 +4913,3 @@ show_startup_window()
 # ==== CHẠY ỨNG DỤNG ====
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
-
