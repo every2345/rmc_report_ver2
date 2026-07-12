@@ -37,7 +37,8 @@ documentary_archive_url = f"{BASE_URL}/DOCUMENTARY"
 CLIENT_ID = "ac4edccf-a8ee-41aa-bcc4-6603c4bebae1"
 TENANT_ID = "5983a1d2-f46b-492d-a9b3-7e2f3609d20b"
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
-GRAPH_SCOPES = ["Files.Read"]
+# Need write permission to upload back to OneDrive. Change to Files.ReadWrite or Files.ReadWrite.All if admin consent required.
+GRAPH_SCOPES = ["Files.ReadWrite"]
 CACHE_DIR = r"D:\RMC_Assistant_v3\Cache"
 CACHE_FILE = os.path.join(CACHE_DIR, "token_cache.bin")
 
@@ -193,7 +194,7 @@ def authenticate():
         result = app.acquire_token_silent(GRAPH_SCOPES, account=accounts[0])
     else:
         flow = app.initiate_device_flow(scopes=GRAPH_SCOPES)
-        if "user_code" not in flow:
+        if not flow or "user_code" not in flow:
             raise Exception("Không khởi tạo được Device Flow")
 
         win = show_device_login(flow)
@@ -395,7 +396,7 @@ class GraphSession:
         # Nếu vẫn chưa có token hợp lệ → login lại
         if not self.token or "access_token" not in self.token:
             flow = self.app.initiate_device_flow(scopes=self.scopes)
-            if "user_code" not in flow:
+            if not flow or "user_code" not in flow:
                 raise Exception("Không khởi tạo được Device Flow")
             win = show_device_login(flow)
             result_container = {"result": None}
@@ -641,6 +642,60 @@ def save_metadata(metadata):
     with open(METADATA_FILE, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=4, ensure_ascii=False)
 
+
+# ==== Per-folder index helpers =====================================================
+def get_folder_index_path(save_dir):
+    return os.path.join(save_dir, ".onedrive_index.json")
+
+def load_folder_index(save_dir):
+    path = get_folder_index_path(save_dir)
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_folder_index(save_dir, data):
+    path = get_folder_index_path(save_dir)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"❌ Failed to save folder index {path}: {e}")
+
+
+def upload_file_to_onedrive(token, item_id, local_path, drive_id=None):
+    """Upload local file content to an existing OneDrive item by id.
+    Returns True on success, False otherwise.
+    """
+    try:
+        if not os.path.exists(local_path):
+            return False
+        if drive_id:
+            url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}/content"
+        else:
+            url = f"https://graph.microsoft.com/v1.0/me/drive/items/{item_id}/content"
+        headers = {
+            "Authorization": f"Bearer {token}"
+        }
+        with open(local_path, "rb") as fh:
+            data = fh.read()
+        r = requests.put(url, headers=headers, data=data)
+        if r.status_code in (200, 201, 204):
+            # try to return true; caller may update index based on UTC now
+            return True
+        else:
+            try:
+                print(f"❌ Upload failed: {r.status_code} {r.text}")
+            except:
+                pass
+            return False
+    except Exception as e:
+        print(f"❌ Exception in upload_file_to_onedrive: {e}")
+        return False
+
 # ==== SYNC FILES FROM ONEDRIVE =========================================================
 def sync_files_from_onedrive(token, share_url, save_dir):
     """
@@ -709,6 +764,8 @@ def sync_files_from_onedrive(token, share_url, save_dir):
 
     # ==== LOAD METADATA =====================================================
     local_metadata = load_metadata()
+    # ==== LOAD FOLDER INDEX =================================================
+    folder_index = load_folder_index(save_dir)
 
     # ==== LOOP FILES =====================================================
     for file in files:
@@ -795,6 +852,23 @@ def sync_files_from_onedrive(token, share_url, save_dir):
                                 "lastModifiedDateTime": last_modified,
                                 "local_path": p
                             }
+                            # update per-folder index for existing local file
+                            try:
+                                parent_ref = file.get("parentReference", {}) or {}
+                                parent_path = parent_ref.get("path", "")
+                                if parent_path.startswith("/drive/root:"):
+                                    parent_path = parent_path.replace("/drive/root:", "").lstrip("/")
+                                remote_full_path = f"{parent_path}/{file_name}" if parent_path else file_name
+                                folder_index[remote_full_path] = {
+                                    "name": file_name,
+                                    "full_path": remote_full_path,
+                                    "id": file_id,
+                                    "webUrl": file.get("webUrl"),
+                                    "local_path": p,
+                                    "lastModifiedDateTime": last_modified
+                                }
+                            except Exception as e:
+                                print(f"❌ Unable to update folder index for existing file: {e}")
                             break
                     else:
                         need_download = True
@@ -819,9 +893,31 @@ def sync_files_from_onedrive(token, share_url, save_dir):
                     "lastModifiedDateTime": last_modified,
                     "local_path": filepath
                 }
+                # update per-folder index for downloaded file
+                try:
+                    parent_ref = file.get("parentReference", {}) or {}
+                    parent_path = parent_ref.get("path", "")
+                    if parent_path.startswith("/drive/root:"):
+                        parent_path = parent_path.replace("/drive/root:", "").lstrip("/")
+                    remote_full_path = f"{parent_path}/{file_name}" if parent_path else file_name
+                    folder_index[remote_full_path] = {
+                        "name": file_name,
+                        "full_path": remote_full_path,
+                        "id": file_id,
+                        "webUrl": file.get("webUrl"),
+                        "local_path": filepath,
+                        "lastModifiedDateTime": last_modified
+                    }
+                except Exception as e:
+                    print(f"❌ Unable to update folder index: {e}")
 
     # ==== SAVE METADATA =====================================================
     save_metadata(local_metadata)
+    # save per-folder index
+    try:
+        save_folder_index(save_dir, folder_index)
+    except Exception:
+        pass
 
 # ==== Bắt đầu đồng bộ dữ liệu từ OneDrive ===================================================== 
 # ==== GET SAVE DIRECTORY FROM PATH =====================================================
@@ -1347,7 +1443,7 @@ def authenticate():
         result = app.acquire_token_silent(GRAPH_SCOPES, account=accounts[0])
     else:
         flow = app.initiate_device_flow(scopes=GRAPH_SCOPES)
-        if "user_code" not in flow:
+        if not flow or "user_code" not in flow:
             raise Exception("Không khởi tạo được Device Flow")
         print(flow["message"])
         result = app.acquire_token_by_device_flow(flow)
@@ -1395,6 +1491,9 @@ def build_device_mapping_from_local(report_dir):
             name_without_ext = os.path.splitext(
                 filename
             )[0].strip()
+            # ignore hidden files starting with dot (e.g., .onedrive_index.json)
+            if name_without_ext.startswith('.'):
+                continue
             upper_name = name_without_ext.upper()
             # ==================================
             # IGNORE
@@ -3927,6 +4026,8 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
         try:
             items = os.listdir(selected_folder)
             current_files = [f for f in items if os.path.isfile(os.path.join(selected_folder, f))]
+            # Exclude json files and dot-files from the displayed file list
+            current_files = [f for f in items if os.path.isfile(os.path.join(selected_folder, f)) and not f.lower().endswith('.json') and not f.startswith('.')]
             filter_files()
         except Exception:
             file_listbox.insert(tk.END, "(Lỗi đọc thư mục)")
@@ -4307,6 +4408,165 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
     control_frame = tk.Frame(new_window, bg="white")
     control_frame.pack(pady=20)
     tk.Button(control_frame, text="Update", font=("Arial", 11, "bold"), bg="#4a90e2", fg="white", width=12, command=open_update_window).pack(side="left", padx=10)
+    # Cloud button: open cloud window showing per-folder index and allow pushing local updates to OneDrive
+    def open_cloud_window():
+        selected_folder = folder_combo.get()
+        if not selected_folder or selected_folder.startswith("---"):
+            messagebox.showwarning("Cảnh báo", "Vui lòng chọn thư mục trước khi mở Cloud view!", parent=new_window)
+            return
+
+        folder_index = load_folder_index(selected_folder)
+
+        cloud_win = tk.Toplevel(new_window)
+        cloud_win.title("Cloud Manager")
+        cloud_win.geometry("800x500")
+        cloud_win.transient(new_window)
+        cloud_win.grab_set()
+
+        cols = ("stt","name","download_date","local_update")
+        tree = ttk.Treeview(cloud_win, columns=cols, show="headings")
+        tree.heading("stt", text="STT")
+        tree.heading("name", text="Tên file")
+        tree.heading("download_date", text="Ngày tải về (remote)")
+        tree.heading("local_update", text="Ngày local update")
+        tree.column("stt", width=50, anchor="center")
+        tree.column("name", width=350)
+        tree.column("download_date", width=180)
+        tree.column("local_update", width=180)
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # populate rows from current files (exclude json)
+        files = [f for f in current_files if not f.lower().endswith('.json') and not f.startswith('.')]
+        files.sort()
+        token = graph_session.ensure_token()
+        rows = []
+        for idx, fname in enumerate(files, start=1):
+            fullpath = os.path.join(selected_folder, fname)
+            entry = None
+            # try to find matching entry in folder_index by local_path or name
+            for k, v in folder_index.items():
+                try:
+                    lp = v.get('local_path','')
+                    if lp and os.path.basename(lp) == fname:
+                        entry = v
+                        break
+                except:
+                    continue
+            if not entry:
+                # fallback search by name
+                for k, v in folder_index.items():
+                    if v.get('name','') == fname:
+                        entry = v
+                        break
+
+            download_date = entry.get('lastModifiedDateTime') if entry else ""
+            # format remote download date for display: remove 'T' and timezone 'Z' -> 'YYYY-MM-DD HH:MM:SS'
+            display_download_date = ""
+            if download_date:
+                try:
+                    remote_dt = datetime.datetime.fromisoformat(download_date.replace('Z','+00:00'))
+                    display_download_date = remote_dt.strftime('%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    # fallback: simple replace
+                    display_download_date = download_date.replace('T', ' ').rstrip('Z')
+            # compute local update: if file mtime > remote timestamp
+            local_update = ""
+            try:
+                if os.path.exists(fullpath):
+                    local_ts = os.path.getmtime(fullpath)
+                    if entry and entry.get('lastModifiedDateTime'):
+                        try:
+                            remote_dt = datetime.datetime.fromisoformat(entry['lastModifiedDateTime'].replace('Z','+00:00'))
+                            remote_ts = remote_dt.timestamp()
+                        except:
+                            remote_ts = None
+                        if remote_ts and local_ts > (remote_ts + 1):
+                            local_update = datetime.datetime.fromtimestamp(local_ts).strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        # if no remote info, leave local_update blank for initial download case
+                        local_update = ""
+            except Exception:
+                local_update = ""
+
+            tree.insert("", tk.END, values=(idx, fname, display_download_date or "", local_update or ""))
+
+        # Cloud update action: push local-updated files to OneDrive using folder_index entries
+        def perform_cloud_update():
+            to_update = []
+            for item in tree.get_children():
+                vals = tree.item(item, 'values')
+                fname = vals[1]
+                local_upd = vals[3]
+                if local_upd:
+                    to_update.append(fname)
+
+            if not to_update:
+                messagebox.showinfo("Cloud Update", "Không có file nào cần update lên cloud.", parent=cloud_win)
+                return
+
+            confirm = messagebox.askyesno("Xác nhận", f"Bạn có muốn đồng bộ {len(to_update)} file lên cloud không?", parent=cloud_win)
+            if not confirm:
+                return
+
+            success = 0
+            failures = []
+            for fname in to_update:
+                fullpath = os.path.join(selected_folder, fname)
+                # find entry
+                entry = None
+                for k,v in folder_index.items():
+                    lp = v.get('local_path','')
+                    if lp and os.path.basename(lp) == fname:
+                        entry = v
+                        key = k
+                        break
+                if not entry:
+                    for k,v in folder_index.items():
+                        if v.get('name','') == fname:
+                            entry = v
+                            key = k
+                            break
+                if not entry:
+                    failures.append(f"{fname}: mapping not found")
+                    continue
+
+                item_id = entry.get('id')
+                if not item_id:
+                    failures.append(f"{fname}: missing item id")
+                    continue
+
+                try:
+                    drive_id = entry.get('parentReference', {}).get('driveId') or entry.get('driveId')
+                    ok = upload_file_to_onedrive(token, item_id, fullpath, drive_id=drive_id)
+                    if ok:
+                        success += 1
+                        # update folder_index timestamp
+                        # use timezone-aware UTC to avoid DeprecationWarning
+                        new_iso = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
+                        folder_index[key]['lastModifiedDateTime'] = new_iso
+                        folder_index[key]['local_path'] = fullpath
+                    else:
+                        failures.append(f"{fname}: upload failed")
+                except Exception as e:
+                    failures.append(f"{fname}: {e}")
+
+            # save index
+            try:
+                save_folder_index(selected_folder, folder_index)
+            except:
+                pass
+
+            msg = f"Đã cập nhật {success} file lên cloud."
+            if failures:
+                msg += "\nMột số lỗi:\n" + "\n".join(failures)
+            messagebox.showinfo("Cloud Update", msg, parent=cloud_win)
+
+        btn_frame = tk.Frame(cloud_win)
+        btn_frame.pack(pady=8)
+        tk.Button(btn_frame, text="Cloud Update", bg="#4CAF50", fg="white", font=("Arial",11,"bold"), command=perform_cloud_update).pack(side="left", padx=8)
+        tk.Button(btn_frame, text="Close", bg="#f44336", fg="white", font=("Arial",11), command=cloud_win.destroy).pack(side="left", padx=8)
+
+    tk.Button(control_frame, text="Cloud", font=("Arial", 11, "bold"), bg="#9B59B6", fg="white", width=12, command=open_cloud_window).pack(side="left", padx=10)
     tk.Button(control_frame, text="Đóng", font=("Arial", 11), bg="#ff4c4c", fg="white", width=12, command=new_window.destroy).pack(side="left", padx=10)
 
 # === Khu vực tạo các thành phần =======================================================================================================================================
