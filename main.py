@@ -4025,7 +4025,6 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
         current_files = []
         try:
             items = os.listdir(selected_folder)
-            current_files = [f for f in items if os.path.isfile(os.path.join(selected_folder, f))]
             # Exclude json files and dot-files from the displayed file list
             current_files = [f for f in items if os.path.isfile(os.path.join(selected_folder, f)) and not f.lower().endswith('.json') and not f.startswith('.')]
             filter_files()
@@ -4433,62 +4432,186 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
         tree.column("name", width=350)
         tree.column("download_date", width=180)
         tree.column("local_update", width=180)
-        tree.pack(fill="both", expand=True, padx=10, pady=10)
+        # add search bar for cloud view
+        # documentary-style text view with search+highlight
+        search_frame_cloud = tk.Frame(cloud_win)
+        search_frame_cloud.pack(fill="x", padx=10, pady=(6,0))
+        tk.Label(search_frame_cloud, text="Tìm từ khóa:", bg=cloud_win.cget('bg')).pack(side="left")
+        search_frame_cloud.pack(pady=5, padx=5, fill="x")
+        tk.Label(search_frame_cloud, text="Tìm từ khóa:", font=("Arial", 10), bg=cloud_win.cget('bg')).pack(side="left")
+        search_var_cloud = tk.StringVar()
+        search_entry_cloud = tk.Entry(search_frame_cloud, textvariable=search_var_cloud)
+        search_entry_cloud.pack(side="left", fill="x", expand=True, padx=(8,0))
+        entry_search_cloud = tk.Entry(search_frame_cloud, textvariable=search_var_cloud, font=("Arial", 10), width=60)
+        entry_search_cloud.pack(side="left", padx=8, fill="x", expand=True)
 
-        # populate rows from current files (exclude json)
+        tree.pack(fill="both", expand=True, padx=10, pady=10)
+        frame_table_cloud = tk.Frame(cloud_win)
+        frame_table_cloud.pack(pady=6, fill="both", expand=True)
+        scrollbar_cloud = tk.Scrollbar(frame_table_cloud)
+        scrollbar_cloud.pack(side="right", fill="y")
+        text_widget_cloud = tk.Text(frame_table_cloud, wrap="none", font=("Consolas", 10), yscrollcommand=scrollbar_cloud.set)
+        text_widget_cloud.pack(fill="both", expand=True)
+        scrollbar_cloud.config(command=text_widget_cloud.yview)
+
+        # prepare file records (exclude json and dot-files)
         files = [f for f in current_files if not f.lower().endswith('.json') and not f.startswith('.')]
         files.sort()
         token = graph_session.ensure_token()
-        rows = []
-        for idx, fname in enumerate(files, start=1):
+        file_records = []
+        for fname in files:
             fullpath = os.path.join(selected_folder, fname)
             entry = None
-            # try to find matching entry in folder_index by local_path or name
+            entry_key = None
+            # match folder_index by local_path or name
             for k, v in folder_index.items():
                 try:
-                    lp = v.get('local_path','')
+                    lp = v.get('local_path', '')
                     if lp and os.path.basename(lp) == fname:
                         entry = v
+                        entry_key = k
                         break
                 except:
                     continue
             if not entry:
-                # fallback search by name
                 for k, v in folder_index.items():
-                    if v.get('name','') == fname:
+                    if v.get('name', '') == fname:
                         entry = v
+                        entry_key = k
                         break
 
             download_date = entry.get('lastModifiedDateTime') if entry else ""
-            # format remote download date for display: remove 'T' and timezone 'Z' -> 'YYYY-MM-DD HH:MM:SS'
             display_download_date = ""
             if download_date:
                 try:
-                    remote_dt = datetime.datetime.fromisoformat(download_date.replace('Z','+00:00'))
+                    remote_dt = datetime.datetime.fromisoformat(download_date.replace('Z', '+00:00'))
                     display_download_date = remote_dt.strftime('%Y-%m-%d %H:%M:%S')
                 except Exception:
-                    # fallback: simple replace
                     display_download_date = download_date.replace('T', ' ').rstrip('Z')
-            # compute local update: if file mtime > remote timestamp
+
             local_update = ""
             try:
                 if os.path.exists(fullpath):
                     local_ts = os.path.getmtime(fullpath)
                     if entry and entry.get('lastModifiedDateTime'):
                         try:
-                            remote_dt = datetime.datetime.fromisoformat(entry['lastModifiedDateTime'].replace('Z','+00:00'))
+                            remote_dt = datetime.datetime.fromisoformat(entry['lastModifiedDateTime'].replace('Z', '+00:00'))
                             remote_ts = remote_dt.timestamp()
                         except:
                             remote_ts = None
                         if remote_ts and local_ts > (remote_ts + 1):
                             local_update = datetime.datetime.fromtimestamp(local_ts).strftime('%Y-%m-%d %H:%M:%S')
-                    else:
-                        # if no remote info, leave local_update blank for initial download case
-                        local_update = ""
             except Exception:
                 local_update = ""
 
-            tree.insert("", tk.END, values=(idx, fname, display_download_date or "", local_update or ""))
+            file_records.append({
+                'name': fname,
+                'download': display_download_date,
+                'local_update': local_update,
+                'entry': entry,
+                'entry_key': entry_key,
+                'fullpath': fullpath
+            })
+
+        # configure tag for highlighting matches
+        try:
+            tree.tag_configure('match', background='#fff59d')
+        except Exception:
+            pass
+        # configure text tags
+        text_widget_cloud.tag_config(
+            "highlight",
+            background="yellow",
+            foreground="black",
+            font=("Consolas", 10, "bold")
+        )
+        text_widget_cloud.tag_config("downloaded", background="#d0f0c0")
+        text_widget_cloud.tag_config("not_downloaded", background="#f7c6c7")
+        text_widget_cloud.tag_config("header", font=("Consolas", 10, "bold"))
+
+        filtered_files = []
+
+        def update_cloud_table(event=None):
+            keyword = entry_search_cloud.get().strip().lower()
+
+            def get_sort_key(name):
+                name_l = name.lower()
+                if not keyword:
+                    return (0, name_l)
+                if keyword in name_l:
+                    return (-2, name_l.find(keyword), name_l)
+                words = keyword.split()
+                match_count = sum(1 for w in words if w in name_l)
+                if match_count > 0:
+                    return (-1, -match_count, name_l)
+                return (0, 0, name_l)
+
+            sorted_names = sorted([r['name'] for r in file_records], key=get_sort_key)
+            filtered_files.clear()
+            name_to_rec = {r['name']: r for r in file_records}
+            for n in sorted_names:
+                filtered_files.append(name_to_rec.get(n, {'name': n}))
+
+            # render
+            text_widget_cloud.config(state="normal")
+            text_widget_cloud.delete("1.0", tk.END)
+            header = f"{ 'STT':<5}{'TÊN FILE':<40}{'NGÀY TẢI VỀ (remote)':<22}{'NGÀY LOCAL UPDATE'}\n"
+            text_widget_cloud.insert(tk.END, header, "header")
+
+            for idx, rec in enumerate(filtered_files, start=1):
+                name = rec['name']
+                download = rec.get('download','')
+                localupd = rec.get('local_update','')
+                downloaded_flag = os.path.exists(rec.get('fullpath',''))
+                row_tag = "downloaded" if downloaded_flag else "not_downloaded"
+                line = f"{idx:<5}{name:<40}{download:<22}{localupd}\n"
+                line_num = idx + 1
+                text_widget_cloud.insert(tk.END, line, row_tag)
+
+        def populate_tree(records, match_names=None):
+            tree.delete(*tree.get_children())
+            for idx, rec in enumerate(records, start=1):
+                tags = ()
+                if match_names and rec.get('name') in match_names:
+                    tags = ('match',)
+                tree.insert("", tk.END, values=(idx, rec['name'], rec['download'] or "", rec['local_update'] or ""), tags=tags)
+                if keyword:
+                    name_lower = name.lower()
+                    for word in keyword.split():
+                        for match in re.finditer(re.escape(word), name_lower):
+                            prefix_len = len(f"{idx:<5}")
+                            real_start = prefix_len + match.start()
+                            real_end = prefix_len + match.end()
+                            text_widget_cloud.tag_add("highlight", f"{line_num}.{real_start}", f"{line_num}.{real_end}")
+
+        def on_search_cloud(event=None):
+            kw = search_var_cloud.get().strip().lower()
+            if not kw:
+                populate_tree(file_records)
+                return
+            import re
+            kw_norm = re.sub(r"[^0-9a-z]", "", kw.lower())
+            matched = []
+            unmatched = []
+            for r in file_records:
+                name = (r.get('name') or '')
+                name_norm = re.sub(r"[^0-9a-z]", "", name.lower())
+                if kw_norm and kw_norm in name_norm:
+                    matched.append(r)
+                else:
+                    unmatched.append(r)
+            all_records = matched + unmatched
+            match_names = set([r['name'] for r in matched])
+            populate_tree(all_records, match_names=match_names)
+            text_widget_cloud.tag_raise("highlight")
+            text_widget_cloud.config(state="disabled")
+
+        populate_tree(file_records)
+        search_entry_cloud.bind('<KeyRelease>', on_search_cloud)
+        search_entry_cloud.bind('<Return>', on_search_cloud)
+        entry_search_cloud.bind('<KeyRelease>', update_cloud_table)
+        entry_search_cloud.bind('<Return>', update_cloud_table)
+        update_cloud_table()
 
         # Cloud update action: push local-updated files to OneDrive using folder_index entries
         def perform_cloud_update():
@@ -4499,6 +4622,8 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                 local_upd = vals[3]
                 if local_upd:
                     to_update.append(fname)
+            # Collect files displayed that have local_update
+            to_update = [rec['name'] for rec in filtered_files if rec.get('local_update')]
 
             if not to_update:
                 messagebox.showinfo("Cloud Update", "Không có file nào cần update lên cloud.", parent=cloud_win)
@@ -4516,6 +4641,9 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                 entry = None
                 for k,v in folder_index.items():
                     lp = v.get('local_path','')
+                key = None
+                for k, v in folder_index.items():
+                    lp = v.get('local_path', '')
                     if lp and os.path.basename(lp) == fname:
                         entry = v
                         key = k
@@ -4523,6 +4651,8 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                 if not entry:
                     for k,v in folder_index.items():
                         if v.get('name','') == fname:
+                    for k, v in folder_index.items():
+                        if v.get('name', '') == fname:
                             entry = v
                             key = k
                             break
@@ -4543,8 +4673,9 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
                         # update folder_index timestamp
                         # use timezone-aware UTC to avoid DeprecationWarning
                         new_iso = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
-                        folder_index[key]['lastModifiedDateTime'] = new_iso
-                        folder_index[key]['local_path'] = fullpath
+                        if key:
+                            folder_index[key]['lastModifiedDateTime'] = new_iso
+                            folder_index[key]['local_path'] = fullpath
                     else:
                         failures.append(f"{fname}: upload failed")
                 except Exception as e:
