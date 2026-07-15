@@ -24,8 +24,10 @@ root.withdraw()   # Ẩn cửa sổ chính ban đầu
 # ==== Thiết lập và Cấu hình Azure AD, OneDrive, đường dẫn lưu trữ và hơn thế nữa =============================================================================================================
 BASE_URL = (
     "https://aeondelight-my.sharepoint.com/"
-    "personal/phuc_nguyen_aeondelight_biz/"
-    "Documents/PHUC/PHUC/AZURE/"
+    "personal/hq_rmc_aeondelight_biz/"
+    "Documents/"
+    "RMC%20CLOUD%20SERVICES%20%28NOT%20INTERACT%29/"
+    "RMC%20CLOUD%20DATA%20%28SOFTWARE%29/"
     "RMC%20DATA%20STORAGE%20V2"
 )
 
@@ -34,7 +36,7 @@ BASE_URL = (
 documentary_archive_url = f"{BASE_URL}/DOCUMENTARY"
 
 # == Thông tin ID của ứng dụng Azure AD ==
-CLIENT_ID = "ac4edccf-a8ee-41aa-bcc4-6603c4bebae1"
+CLIENT_ID = "30ed53f9-39ec-4d53-8652-d3779cf0ae0a"
 TENANT_ID = "5983a1d2-f46b-492d-a9b3-7e2f3609d20b"
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 # Need write permission to upload back to OneDrive. Change to Files.ReadWrite or Files.ReadWrite.All if admin consent required.
