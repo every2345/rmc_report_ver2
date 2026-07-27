@@ -24,10 +24,8 @@ root.withdraw()   # Ẩn cửa sổ chính ban đầu
 # ==== Thiết lập và Cấu hình Azure AD, OneDrive, đường dẫn lưu trữ và hơn thế nữa =============================================================================================================
 BASE_URL = (
     "https://aeondelight-my.sharepoint.com/"
-    "personal/hq_rmc_aeondelight_biz/"
-    "Documents/"
-    "RMC%20CLOUD%20SERVICES%20%28NOT%20INTERACT%29/"
-    "RMC%20CLOUD%20DATA%20%28SOFTWARE%29/"
+    "personal/phuc_nguyen_aeondelight_biz/"
+    "Documents/PHUC/PHUC/AZURE/"
     "RMC%20DATA%20STORAGE%20V2"
 )
 
@@ -36,7 +34,7 @@ BASE_URL = (
 documentary_archive_url = f"{BASE_URL}/DOCUMENTARY"
 
 # == Thông tin ID của ứng dụng Azure AD ==
-CLIENT_ID = "30ed53f9-39ec-4d53-8652-d3779cf0ae0a"
+CLIENT_ID = "ac4edccf-a8ee-41aa-bcc4-6603c4bebae1"
 TENANT_ID = "5983a1d2-f46b-492d-a9b3-7e2f3609d20b"
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
 # Need write permission to upload back to OneDrive. Change to Files.ReadWrite or Files.ReadWrite.All if admin consent required.
@@ -2619,8 +2617,6 @@ def create_new_window_contact(title,content=None):
     ok_button.pack(
         pady=15
     )
-# Nhớ thêm dòng này lên đầu file code của bạn nhé:
-# from tkcalendar import DateEntry
 
 # == CỬA SỔ STATUS ==
 def create_new_window_status(title, content=None):
@@ -3377,6 +3373,7 @@ def create_new_window_note():
             reminder.get("_file"),
             reminder.get("delete_mode", "delete")
         )
+
 # == Cửa sổ hình ảnh Daviteq ==
 def create_new_window_image_daviteq(title):
     # =====================================================
@@ -3406,7 +3403,14 @@ def create_new_window_image_daviteq(title):
                     filepath = os.path.join(folder, filename)
                     if not os.path.isfile(filepath):
                         continue
-                        
+
+                    # ignore hidden/dot files (e.g., .onedrive_index.json) and non-image files
+                    if filename.startswith('.'):
+                        continue
+                    _, ext = os.path.splitext(filename)
+                    if ext.lower() not in ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'):
+                        continue
+
                     # Bỏ extension (.png, .jpg...)
                     name_without_ext = os.path.splitext(filename)[0]
                     # Split theo ký tự "_"
@@ -3796,6 +3800,7 @@ def create_new_window_image_daviteq(title):
             first_sub_btn,
             first_image_list
         )
+
 # == Cửa sổ tài liệu ==
 def create_documentary_viewer(token, share_url):
     files = list_files_from_url(token, share_url)  # Lấy file từ OneDrive Azure
@@ -3960,6 +3965,7 @@ def create_documentary_viewer(token, share_url):
 
     update_table()
     root.mainloop()
+
 # == Cửa sổ tương tác dữ liệu ==
 def create_data_interaction_window(root, title="Cửa sổ tương tác dữ liệu"):
     # =====================================================
@@ -4915,3 +4921,4 @@ show_startup_window()
 # ==== CHẠY ỨNG DỤNG ====
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
+
