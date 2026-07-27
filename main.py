@@ -71,12 +71,14 @@ AEONGMS_IMAGE_LAYOUT_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "LAYOUT")
 AEONGMS_IMAGE_GATEWAY_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "GATEWAY")
 AEONGMS_IMAGE_SENSOR_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "SENSOR")
 AEONGMS_IMAGE_AL_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "ALARM_POINTS") # Đã sửa thành ALARM_POINTS
+AEONGMS_IMAGE_SEC_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "SECURITY") # Đã sửa thành ALARM_POINTS
 
 # AEON MAXVALU IMG ARCHIVE
 MAXVALU_IMAGE_LAYOUT_ARCHIVE_DIR = os.path.join(MAXVALUIMG_DIR, "LAYOUT")
 MAXVALU_IMAGE_GATEWAY_ARCHIVE_DIR = os.path.join(MAXVALUIMG_DIR, "GATEWAY")
 MAXVALU_IMAGE_SENSOR_ARCHIVE_DIR = os.path.join(MAXVALUIMG_DIR, "SENSOR")
 MAXVALU_IMAGE_AL_ARCHIVE_DIR = os.path.join(MAXVALUIMG_DIR, "ALARM_POINTS")
+MAXVALU_IMAGE_SEC_ARCHIVE_DIR = os.path.join(MAXVALUIMG_DIR, "SECURITY")
 # ==========================================================
 # DOCUMENTARY
 # ==========================================================
@@ -103,6 +105,7 @@ folders = [
     AEONGMS_IMAGE_GATEWAY_ARCHIVE_DIR,
     AEONGMS_IMAGE_SENSOR_ARCHIVE_DIR,
     AEONGMS_IMAGE_AL_ARCHIVE_DIR,
+    AEONGMS_IMAGE_SEC_ARCHIVE_DIR,
 
     # Nhánh thư mục MAXVALU
     MAXVALUIMG_DIR,
@@ -110,6 +113,7 @@ folders = [
     MAXVALU_IMAGE_GATEWAY_ARCHIVE_DIR,
     MAXVALU_IMAGE_SENSOR_ARCHIVE_DIR,
     MAXVALU_IMAGE_AL_ARCHIVE_DIR,
+    MAXVALU_IMAGE_SEC_ARCHIVE_DIR,
 
     DOCUMENTARY_ARCHIVE_DIR,
     METADATA_DIR
@@ -958,6 +962,14 @@ def get_save_dir_from_path(folder_path):
     elif "ALARM_POINT" in path_upper or "ALARM_POINTS" in path_upper:
         if is_aeongms: return AEONGMS_IMAGE_AL_ARCHIVE_DIR
         if is_maxvalu: return MAXVALU_IMAGE_AL_ARCHIVE_DIR
+        return None
+
+    # =====================================================
+    # SECURITY
+    # =====================================================
+    elif "SECURITY" in path_upper:
+        if is_aeongms: return AEONGMS_IMAGE_SEC_ARCHIVE_DIR
+        if is_maxvalu: return MAXVALU_IMAGE_SEC_ARCHIVE_DIR
         return None
 
     # =====================================================
@@ -3388,7 +3400,8 @@ def create_new_window_image_daviteq(title):
             "LAYOUT": [AEONGMS_IMAGE_LAYOUT_ARCHIVE_DIR, MAXVALU_IMAGE_LAYOUT_ARCHIVE_DIR],
             "GATEWAY": [AEONGMS_IMAGE_GATEWAY_ARCHIVE_DIR, MAXVALU_IMAGE_GATEWAY_ARCHIVE_DIR],
             "SENSOR": [AEONGMS_IMAGE_SENSOR_ARCHIVE_DIR, MAXVALU_IMAGE_SENSOR_ARCHIVE_DIR],
-            "ALARMPOINT": [AEONGMS_IMAGE_AL_ARCHIVE_DIR, MAXVALU_IMAGE_AL_ARCHIVE_DIR]
+            "ALARMPOINT": [AEONGMS_IMAGE_AL_ARCHIVE_DIR, MAXVALU_IMAGE_AL_ARCHIVE_DIR],
+            "SECURITY": [AEONGMS_IMAGE_SEC_ARCHIVE_DIR, MAXVALU_IMAGE_SEC_ARCHIVE_DIR]
         }
 
         result = {}
@@ -3707,7 +3720,7 @@ def create_new_window_image_daviteq(title):
     parent_buttons = {}
     selected_sub_button = None
     selected_parent_button = None
-    max_columns = 4
+    max_columns = 5
     # =====================================================
     # LOAD LOCAL IMAGE DATA
     # =====================================================
