@@ -546,19 +546,7 @@ for folder_name, folder_info in DATA_LINK.items():
 print("✅ Loaded Folder URLs:")
 print(FOLDER_URLS.keys())
 
-# ==== Lấy danh sách file từ link chia sẻ ====
-def list_files_from_url(share_url):
-    token = graph_session.ensure_token()
-    encoded_url = base64.b64encode(share_url.encode("utf-8")).decode("utf-8")
-    encoded_url = encoded_url.rstrip("=").replace("/", "_").replace("+", "-")
-    url = f"https://graph.microsoft.com/v1.0/shares/u!{encoded_url}/driveItem/children"
-    headers = {"Authorization": f"Bearer {token}"}
-    r = requests.get(url, headers=headers)
-    if r.status_code == 200:
-        items = r.json().get("value", [])
-        return [{"id": item["id"], "name": item["name"]} for item in items if "file" in item]
-    else:
-        return []
+# (list_files_from_url with implicit session removed; use the token-accepting variant below)
 
 # ==== Tải file từ OneDrive (sử dụng token truyền vào) ====
 # ==== DOWNLOAD FILE =========================================================
@@ -1129,6 +1117,7 @@ hint_label = tk.Label(
     font=("Arial", 10), 
     fg="black"
 )
+
 # Sử dụng fill="both" và expand=True để chữ tự căn đều trong khung cố định
 hint_label.pack(fill="both", expand=True)
 
@@ -1166,9 +1155,7 @@ def reset_after_delay():
     update_hint(
         "Quy trình xử lý sự cố đang đợi"
     )
-# =========================================================
-# CLEANUP ON EXIT
-# =========================================================
+
 # =========================================================
 # CLEANUP ON EXIT
 # =========================================================
@@ -1333,6 +1320,7 @@ def update_timer():
         )
     except:
         countdown_job = None
+
 # =========================================================
 # UPDATE CLOCK
 # =========================================================
@@ -1363,6 +1351,7 @@ def update_clock():
     except tk.TclError:
         clock_running = False
         clock_after_id = None
+
 # =========================================================
 # START & STOP SYSTEM CLOCK
 # =========================================================
@@ -1372,6 +1361,7 @@ def start_clock():
         return
     clock_running = True
     update_clock()
+
 def stop_clock():
     global clock_running
     global clock_after_id
@@ -1386,6 +1376,7 @@ def stop_clock():
 # =========================================================
 # START TIMER
 # =========================================================
+
 def start_timer():
     global time_left
     global countdown_job
@@ -1411,6 +1402,7 @@ def start_timer():
 # =========================================================
 # RESET TIMER
 # =========================================================
+
 def reset_timer():
     global time_left
     global countdown_job
@@ -1442,33 +1434,6 @@ countdown_job = None
 time_left = 300  # 5 phút = 300 giây
 
 # ==== Đăng nhập, tải file và xử lý OneDrive bằng Azure ===========================================================================
-# ==== Hàm đăng nhập Azure AD ====
-def authenticate():
-    cache = msal.SerializableTokenCache()
-    if os.path.exists(CACHE_FILE):
-        cache.deserialize(open(CACHE_FILE, "r").read())
-
-    app = msal.PublicClientApplication(CLIENT_ID, authority=AUTHORITY, token_cache=cache)
-    accounts = app.get_accounts()
-
-    if accounts:
-        result = app.acquire_token_silent(GRAPH_SCOPES, account=accounts[0])
-    else:
-        flow = app.initiate_device_flow(scopes=GRAPH_SCOPES)
-        if not flow or "user_code" not in flow:
-            raise Exception("Không khởi tạo được Device Flow")
-        print(flow["message"])
-        result = app.acquire_token_by_device_flow(flow)
-
-    if "access_token" in result:
-        with open(CACHE_FILE, "w") as f:
-            f.write(cache.serialize())
-        return result["access_token"]
-    else:
-        raise Exception("Đăng nhập thất bại: " + str(result))
-# Đăng nhập Azure
-access_token = authenticate()
-# ==== Lấy danh sách file từ link chia sẻ ====
 def list_files_from_url(token, share_url):
     encoded_url = base64.b64encode(share_url.encode("utf-8")).decode("utf-8")
     encoded_url = encoded_url.rstrip("=").replace("/", "_").replace("+", "-")
@@ -1535,8 +1500,8 @@ def build_device_mapping_from_local(report_dir):
             # ==================================
             mapping[area][device] = file_path
     return mapping
-def refresh_report_mapping():
 
+def refresh_report_mapping():
     global ALL_REPORT_MAPPINGS
     global REPORT_FORM_MAPPING
 
@@ -4998,3 +4963,4 @@ show_startup_window()
 # ==== CHẠY ỨNG DỤNG ====
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
+
