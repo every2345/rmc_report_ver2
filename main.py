@@ -2797,11 +2797,22 @@ def create_new_window_status(title, content=None):
         if status_val == "Không chọn":
             status_val = ""
 
-        # Lấy giá trị chuỗi ngày theo định dạng dd/mm/yyyy từ bảng lịch
-        start_date_str = start_date_entry.get() 
+        # Lấy ngày hôm nay theo định dạng dd/mm/yyyy
+        today_str = datetime.datetime.now().strftime("%d/%m/%Y")
+
+        # Lấy giá trị chuỗi ngày từ bảng lịch, nếu trống thì gán bằng ngày hôm nay
+        start_date_str = start_date_entry.get().strip()
+        if not start_date_str:
+            start_date_str = today_str 
+            
         start_time_str = start_time_entry.get().strip()
-        end_date_str = end_date_entry.get()
+        
+        end_date_str = end_date_entry.get().strip()
+        if not end_date_str:
+            end_date_str = today_str
+            
         end_time_str = end_time_entry.get().strip()
+        
         desc = desc_entry.get("1.0", tk.END).strip()
 
         # =============================================
@@ -2816,7 +2827,7 @@ def create_new_window_status(title, content=None):
 
                 diff_minutes = int((end_dt - start_dt).total_seconds() / 60)
 
-                # Cảnh báo nếu chọn ngày kết thúc bé hơn ngày bắt đầu
+                # Cảnh báo nếu chọn thời gian kết thúc bé hơn thời gian bắt đầu
                 if diff_minutes < 0:
                     messagebox.showwarning("Lỗi logic", "Thời gian kết thúc không thể nhỏ hơn thời gian bắt đầu!")
                     return
@@ -3404,12 +3415,17 @@ def create_new_window_image_daviteq(title):
             "SECURITY": [AEONGMS_IMAGE_SEC_ARCHIVE_DIR, MAXVALU_IMAGE_SEC_ARCHIVE_DIR]
         }
 
+        image_exts = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'}
+        group_names = ['AEONGMS', 'MAXVALU']
+
         result = {}
         for category, folders_list in image_roots.items():
-            result[category] = {}
-            
+            # create per-group containers
+            result[category] = {g: {} for g in group_names}
+
             # Duyệt qua từng thư mục cấu hình (quét cả GMS lẫn Maxvalu)
-            for folder in folders_list:
+            for idx, folder in enumerate(folders_list):
+                group = group_names[idx] if idx < len(group_names) else f'GROUP{idx}'
                 if not os.path.exists(folder):
                     continue
                 for filename in os.listdir(folder):
@@ -3417,40 +3433,39 @@ def create_new_window_image_daviteq(title):
                     if not os.path.isfile(filepath):
                         continue
 
-                    # ignore hidden/dot files (e.g., .onedrive_index.json) and non-image files
+                    # ignore hidden/dot files and non-image files
                     if filename.startswith('.'):
                         continue
                     _, ext = os.path.splitext(filename)
-                    if ext.lower() not in ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'):
+                    if ext.lower() not in image_exts:
                         continue
 
                     # Bỏ extension (.png, .jpg...)
                     name_without_ext = os.path.splitext(filename)[0]
                     # Split theo ký tự "_"
                     parts = name_without_ext.split("_")
-                    
+
                     # Định dạng chuẩn: NVL_DELICA hoặc TQB_BAKERY
                     if len(parts) < 2:
                         continue
-                        
+
                     area = parts[0].upper()
                     device = "_".join(parts[1:])
-                    
-                    if area not in result[category]:
-                        result[category][area] = []
-                        
-                    result[category][area].append({
+
+                    if area not in result[category][group]:
+                        result[category][group][area] = []
+
+                    result[category][group][area].append({
                         "device": device,
                         "path": filepath,
                         "filename": filename
                     })
-                    
+
         # Sắp xếp lại thứ tự thiết bị (Device) theo Alphabet để hiển thị đẹp mắt
         for category in result:
-            for area in result[category]:
-                result[category][area].sort(
-                    key=lambda x: x["device"]
-                )
+            for group in result[category]:
+                for area in result[category][group]:
+                    result[category][group][area].sort(key=lambda x: x["device"])
         return result
     # =====================================================
     # SHOW IMAGES
@@ -3599,16 +3614,17 @@ def create_new_window_image_daviteq(title):
         nonlocal selected_sub_button
 
         # reset all button
-        for frame in category_frames.values():
-
-            for widget in frame.winfo_children():
-
-                if isinstance(widget, tk.Button):
-
-                    widget.config(
-                        bg="white",
-                        fg="black"
-                    )
+        for frames in category_frames.values():
+            # frames can be a Frame or a dict of group->Frame
+            if isinstance(frames, dict):
+                for f in frames.values():
+                    for widget in f.winfo_children():
+                        if isinstance(widget, tk.Button):
+                            widget.config(bg="white", fg="black")
+            else:
+                for widget in frames.winfo_children():
+                    if isinstance(widget, tk.Button):
+                        widget.config(bg="white", fg="black")
 
         selected_sub_button = btn_clicked
 
@@ -3625,31 +3641,51 @@ def create_new_window_image_daviteq(title):
     def toggle_sub_buttons(category_name):
 
         nonlocal selected_parent_button
-
         # reset all parent button
         for btn in parent_buttons.values():
-
-            btn.configure(
-                bg="white",
-                fg="black"
-            )
+            btn.configure(bg="white", fg="black")
 
         selected_parent_button = parent_buttons[category_name]
+        selected_parent_button.configure(bg="#247985", fg="white")
 
-        selected_parent_button.configure(
-            bg="#247985",
-            fg="white"
-        )
+        # hide all frames (handle nested group frames)
+        for cat, frames in category_frames.items():
+            if isinstance(frames, dict):
+                for f in frames.values():
+                    try:
+                        f.pack_forget()
+                    except Exception:
+                        pass
+            else:
+                try:
+                    frames.pack_forget()
+                except Exception:
+                    pass
 
-        # hide all frame
-        for frame in category_frames.values():
+        # show selected group's subframe for this category
+        try:
+            grp = selected_group.get()
+        except Exception:
+            grp = 'AEONGMS'
 
-            frame.pack_forget()
+        frame_to_show = None
+        cat_frames = category_frames.get(category_name)
+        if isinstance(cat_frames, dict):
+            frame_to_show = cat_frames.get(grp) or next(iter(cat_frames.values()), None)
+        else:
+            frame_to_show = cat_frames
 
-        # show selected frame
-        category_frames[category_name].pack(
-            fill="y"
-        )
+        if frame_to_show:
+            frame_to_show.pack(fill="y")
+            # auto-select first area button in this frame so images appear immediately
+            try:
+                for w in frame_to_show.winfo_children():
+                    if isinstance(w, tk.Button):
+                        # invoke the button (runs its command) to show images
+                        w.invoke()
+                        break
+            except Exception:
+                pass
 
     # =====================================================
     # WINDOW
@@ -3681,7 +3717,7 @@ def create_new_window_image_daviteq(title):
     # =====================================================
     sub_button_frame = tk.Frame(
         new_window,
-        width=180,
+        width=260,
         bg="#e8e8e8"
     )
 
@@ -3721,6 +3757,8 @@ def create_new_window_image_daviteq(title):
     selected_sub_button = None
     selected_parent_button = None
     max_columns = 5
+    # currently selected image group (controls which subframe to show)
+    selected_group = tk.StringVar(value='AEONGMS')
     # =====================================================
     # LOAD LOCAL IMAGE DATA
     # =====================================================
@@ -3732,87 +3770,113 @@ def create_new_window_image_daviteq(title):
         ensure_ascii=False
     ))
     # =====================================================
-    # BUILD GUI DYNAMIC
+    # BUILD GUI DYNAMIC (group selector + per-group area lists)
     # =====================================================
-    for category_name, areas in category_images.items():
-        # =============================================
-        # PARENT BUTTON
-        # =============================================
+    # BUILD GUI DYNAMIC
+    # Group selector (AEONGMS / MAXVALU) on top of sub_button_frame
+    group_buttons_frame = tk.Frame(sub_button_frame, bg=sub_button_frame.cget('bg'))
+    group_buttons_frame.pack(fill='x', pady=(6, 4))
+
+    def set_group(g):
+        try:
+            selected_group.set(g)
+        except Exception:
+            pass
+        # update group button visuals
+        try:
+            if g == 'AEONGMS':
+                btn_aeon.config(bg='#2196F3', fg='white')
+                btn_max.config(bg='white', fg='black')
+            else:
+                btn_max.config(bg='#2196F3', fg='white')
+                btn_aeon.config(bg='white', fg='black')
+        except Exception:
+            pass
+
+        # refresh visible areas when group changes
+        if selected_parent_button is not None:
+            for name, btn in parent_buttons.items():
+                if btn == selected_parent_button:
+                    toggle_sub_buttons(name)
+                    break
+
+    btn_aeon = tk.Button(group_buttons_frame, text='AEONGMS', width=12, bg='#2196F3', fg='white', font=("Arial", 10, "bold"), command=lambda: set_group('AEONGMS'))
+    btn_max = tk.Button(group_buttons_frame, text='MAXVALU', width=12, bg='white', fg='black', font=("Arial", 10, "bold"), command=lambda: set_group('MAXVALU'))
+    btn_aeon.pack(side='left', padx=(8,4), pady=4)
+    btn_max.pack(side='left', padx=(4,8), pady=4)
+
+    # container for area frames beneath the group buttons
+    area_container = tk.Frame(sub_button_frame, bg="#e8e8e8")
+    area_container.pack(fill='y', expand=True)
+
+    for category_name, groups in category_images.items():
+        # create parent button (left column)
         parent_btn = tk.Button(
             left_frame,
             text=category_name,
-            width=15,pady=5,
-            bg="white",fg="black",
+            width=15, pady=5,
+            bg="white", fg="black",
             font=("Arial", 10, "bold"),
             activebackground="#e0e0e0",
-            command=lambda c=category_name:
-                toggle_sub_buttons(c)
+            command=lambda c=category_name: toggle_sub_buttons(c)
         )
         parent_btn.pack(pady=(10, 0))
         parent_buttons[category_name] = parent_btn
-        # =============================================
-        # SUB FRAME
-        # =============================================
-        sub_frame = tk.Frame(sub_button_frame,bg="#e8e8e8")
-        category_frames[category_name] = sub_frame
-        # =============================================
-        # AREA BUTTONS
-        # =============================================
-        for area_name, image_list in areas.items():
-            sub_btn = tk.Button(
-                sub_frame,
-                text=area_name,
-                width=15,pady=5,
-                relief="raised",
-                bg="white",fg="black",
-                font=("Arial", 10, "bold"),
-                bd=1,activebackground="#e0e0e0"
-            )
 
-            sub_btn.pack(padx=10,pady=3)
-            sub_btn.config(
-                command=lambda b=sub_btn,
-                               il=image_list:
-                    on_sub_button_click(
-                        b,
-                        il
-                    )
-            )
+        # support grouped structure: groups may be { 'AEONGMS': {area: [items]}, 'MAXVALU': {...} }
+        if isinstance(groups, dict) and any(isinstance(v, dict) for v in groups.values()):
+            category_frames[category_name] = {}
+            for group_name, area_dict in groups.items():
+                sub_frame = tk.Frame(area_container, bg="#e8e8e8")
+                category_frames[category_name][group_name] = sub_frame
+                for area_name, image_list in area_dict.items():
+                    sub_btn = tk.Button(sub_frame, text=area_name, pady=8, relief="raised", bg="white", fg="black", font=("Arial", 10, "bold"), bd=1, activebackground="#e0e0e0")
+                    try:
+                        sub_btn.config(width=26)
+                    except Exception:
+                        pass
+                    sub_btn.pack(padx=10, pady=6)
+                    # attach image list to button so we can access it later
+                    sub_btn.image_list = image_list
+                    sub_btn.config(command=lambda b=sub_btn: on_sub_button_click(b, b.image_list))
+        else:
+            # legacy flat structure
+            sub_frame = tk.Frame(area_container, bg="#e8e8e8")
+            category_frames[category_name] = sub_frame
+            for area_name, image_list in groups.items():
+                sub_btn = tk.Button(sub_frame, text=area_name, pady=8, relief="raised", bg="white", fg="black", font=("Arial", 10, "bold"), bd=1, activebackground="#e0e0e0")
+                try:
+                    sub_btn.config(width=24)
+                except Exception:
+                    pass
+                sub_btn.pack(padx=10, pady=6)
+                sub_btn.image_list = image_list
+                sub_btn.config(command=lambda b=sub_btn: on_sub_button_click(b, b.image_list))
 
     # =====================================================
     # AUTO SELECT FIRST CATEGORY
     # =====================================================
     if category_images:
+        first_category = list(category_images.keys())[0]
+        toggle_sub_buttons(first_category)
 
-        first_category = list(
-            category_images.keys()
-        )[0]
+        # choose group from selected_group var
+        grp = 'AEONGMS'
+        try:
+            grp = selected_group.get()
+        except Exception:
+            pass
 
-        toggle_sub_buttons(
-            first_category
-        )
+        # find first area in that group (fallback to any group)
+        group_dict = category_images[first_category]
+        if grp not in group_dict:
+            grp = next(iter(group_dict.keys()))
 
-        # auto select first area
-        first_area = list(
-            category_images[first_category].keys()
-        )[0]
-
-        first_image_list = category_images[
-            first_category
-        ][
-            first_area
-        ]
-
-        first_sub_frame = category_frames[
-            first_category
-        ]
-
+        first_area = list(group_dict[grp].keys())[0]
+        first_image_list = group_dict[grp][first_area]
+        first_sub_frame = category_frames[first_category][grp]
         first_sub_btn = first_sub_frame.winfo_children()[0]
-
-        on_sub_button_click(
-            first_sub_btn,
-            first_image_list
-        )
+        on_sub_button_click(first_sub_btn, first_image_list)
 
 # == Cửa sổ tài liệu ==
 def create_documentary_viewer(token, share_url):
@@ -4934,4 +4998,3 @@ show_startup_window()
 # ==== CHẠY ỨNG DỤNG ====
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
-
