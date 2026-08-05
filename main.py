@@ -3362,7 +3362,7 @@ def create_new_window_note():
             reminder.get("delete_mode", "delete")
         )
 
-# == Cửa sổ hình ảnh Daviteq ==
+# == Cửa sổ hình ảnh ==
 def create_new_window_image_daviteq(title):
     # =====================================================
     # BUILD IMAGE MAPPING FROM LOCAL
@@ -3552,7 +3552,6 @@ def create_new_window_image_daviteq(title):
             print(
                 f"❌ Lỗi mở ảnh lớn: {e}"
             )
-
     # =====================================================
     # OPEN IMAGE EXTERNAL
     # =====================================================
@@ -3567,7 +3566,6 @@ def create_new_window_image_daviteq(title):
             print(
                 f"❌ Lỗi mở ảnh: {e}"
             )
-
     # =====================================================
     # SUB BUTTON CLICK
     # =====================================================
@@ -3599,7 +3597,6 @@ def create_new_window_image_daviteq(title):
         )
 
         show_images(image_list)
-
     # =====================================================
     # TOGGLE CATEGORY
     # =====================================================
@@ -3651,18 +3648,13 @@ def create_new_window_image_daviteq(title):
                         break
             except Exception:
                 pass
-
     # =====================================================
     # WINDOW
     # =====================================================
     new_window = tk.Toplevel()
-
     new_window.title(title)
-
     new_window.geometry("1200x650")
-
     new_window.configure(bg="white")
-
     # =====================================================
     # LEFT FRAME
     # =====================================================
@@ -3677,6 +3669,7 @@ def create_new_window_image_daviteq(title):
         fill="y"
     )
 
+    # (search entry moved into sub_button_frame below group buttons)
     # =====================================================
     # SUB BUTTON FRAME
     # =====================================================
@@ -3770,14 +3763,163 @@ def create_new_window_image_daviteq(title):
     btn_aeon.pack(side='left', padx=(8,4), pady=4)
     btn_max.pack(side='left', padx=(4,8), pady=4)
 
-    # container for area frames beneath the group buttons
-    area_container = tk.Frame(sub_button_frame, bg="#e8e8e8")
-    area_container.pack(fill='y', expand=True)
+    # SEARCH for parent buttons (placed below group buttons to match mockup)
+    parent_search_frame = tk.Frame(sub_button_frame, bg=sub_button_frame.cget('bg'))
+    parent_search_frame.pack(fill='x', pady=(4, 6), padx=8)
+    search_parent_var_local = tk.StringVar()
+    search_parent_entry_local = tk.Entry(parent_search_frame, textvariable=search_parent_var_local, font=("Arial", 10))
+    search_parent_entry_local.pack(fill='x')
+
+    # container for area frames beneath the group buttons (scrollable)
+    area_canvas = tk.Canvas(sub_button_frame, bg="#e8e8e8", highlightthickness=0)
+    area_scrollbar = tk.Scrollbar(sub_button_frame, orient="vertical", command=area_canvas.yview)
+    area_canvas.configure(yscrollcommand=area_scrollbar.set)
+    area_canvas.pack(side='left', fill='y', expand=True)
+    area_scrollbar.pack(side='right', fill='y')
+
+    area_container = tk.Frame(area_canvas, bg="#e8e8e8")
+    area_window_id = area_canvas.create_window((0, 0), window=area_container, anchor='nw')
+
+    def on_area_container_config(event):
+        try:
+            area_canvas.configure(scrollregion=area_canvas.bbox("all"))
+        except Exception:
+            pass
+    area_container.bind("<Configure>", on_area_container_config)
+
+    # keep area frame width in sync with canvas width to avoid wrapping
+    def on_area_canvas_config(event):
+        try:
+            area_canvas.itemconfig(area_window_id, width=event.width)
+        except Exception:
+            pass
+    area_canvas.bind('<Configure>', on_area_canvas_config)
+
+    # -----------------------------------------------------
+    # Container in LEFT FRAME to hold parent button blocks
+    parent_list_container = tk.Frame(left_frame, bg=left_frame.cget('bg'))
+    parent_list_container.pack(fill='both', expand=True, pady=(6,0))
+
+    # Local tracking list for parent buttons to support search/reorder
+    # Each entry is (block_frame, parent_button)
+    parent_items = []
+    parent_area_map = {}
+
+    # -----------------------------------------------------
+    # Filter function to push matching parent buttons to top
+    # -----------------------------------------------------
+    def filter_parent_buttons_local(event=None):
+        keyword = search_parent_entry_local.get().strip().lower()
+        matches = []
+        non_matches = []
+
+        for block, btn in parent_items:
+            text = btn.cget('text').lower()
+            is_match = False
+
+            # direct match on parent button text
+            if keyword == '' or keyword in text:
+                is_match = True
+            else:
+                # also search inside precomputed area name map for this category
+                try:
+                    category_name = btn.cget('text')
+                    areas = parent_area_map.get(category_name, set())
+                    if any(keyword in a for a in areas):
+                        is_match = True
+                except Exception:
+                    pass
+
+            if is_match:
+                matches.append((block, btn))
+            else:
+                non_matches.append((block, btn))
+
+        # remove all from layout
+        for block, btn in parent_items:
+            try:
+                block.pack_forget()
+            except Exception:
+                pass
+
+        # pack matches first
+        for block, btn in matches:
+            try:
+                block.pack(fill='x', padx=5, pady=4)
+            except Exception:
+                pass
+
+        # then non-matches
+        for block, btn in non_matches:
+            try:
+                block.pack(fill='x', padx=5, pady=4)
+            except Exception:
+                pass
+        # ensure layout refresh
+        try:
+            parent_list_container.update_idletasks()
+        except Exception:
+            pass
+        # Also reorder area buttons in the middle column so matched areas appear first
+        try:
+            kw = keyword
+            if kw:
+                for cat, frames in category_frames.items():
+                    if isinstance(frames, dict):
+                        for f in frames.values():
+                            try:
+                                btns = [w for w in f.winfo_children() if isinstance(w, tk.Button)]
+                                matches_a = [b for b in btns if kw in b.cget('text').lower()]
+                                others_a = [b for b in btns if b not in matches_a]
+                                for b in btns:
+                                    try:
+                                        b.pack_forget()
+                                    except Exception:
+                                        pass
+                                for b in matches_a:
+                                    try:
+                                        b.pack(padx=10, pady=6)
+                                    except Exception:
+                                        pass
+                                for b in others_a:
+                                    try:
+                                        b.pack(padx=10, pady=6)
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                    else:
+                        f = frames
+                        try:
+                            btns = [w for w in f.winfo_children() if isinstance(w, tk.Button)]
+                            matches_a = [b for b in btns if kw in b.cget('text').lower()]
+                            others_a = [b for b in btns if b not in matches_a]
+                            for b in btns:
+                                try:
+                                    b.pack_forget()
+                                except Exception:
+                                    pass
+                            for b in matches_a:
+                                try:
+                                    b.pack(padx=10, pady=6)
+                                except Exception:
+                                    pass
+                            for b in others_a:
+                                try:
+                                    b.pack(padx=10, pady=6)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+    search_parent_entry_local.bind('<KeyRelease>', lambda e: filter_parent_buttons_local(e))
 
     for category_name, groups in category_images.items():
-        # create parent button (left column)
+        # create a block frame inside parent_list_container so we can pack_forget / repack when filtering
+        block = tk.Frame(parent_list_container, bg=left_frame.cget('bg'))
         parent_btn = tk.Button(
-            left_frame,
+            block,
             text=category_name,
             width=15, pady=5,
             bg="white", fg="black",
@@ -3785,8 +3927,32 @@ def create_new_window_image_daviteq(title):
             activebackground="#e0e0e0",
             command=lambda c=category_name: toggle_sub_buttons(c)
         )
-        parent_btn.pack(pady=(10, 0))
+        parent_btn.pack()
+        block.pack(pady=(6, 0), fill='x')
         parent_buttons[category_name] = parent_btn
+        parent_items.append((block, parent_btn))
+
+        # build list of area names under this category for fast lookup
+        area_names = set()
+        try:
+            groups_obj = groups
+            if isinstance(groups_obj, dict):
+                for g_name, area_dict in groups_obj.items():
+                    if isinstance(area_dict, dict):
+                        for a in area_dict.keys():
+                            area_names.add(str(a).strip().lower())
+                    else:
+                        # list of dicts with 'device' keys
+                        for it in area_dict:
+                            try:
+                                nm = it.get('device') or it.get('filename') or ''
+                                if nm:
+                                    area_names.add(str(nm).strip().lower())
+                            except Exception:
+                                pass
+        except Exception:
+            pass
+        parent_area_map[category_name] = area_names
 
         # support grouped structure: groups may be { 'AEONGMS': {area: [items]}, 'MAXVALU': {...} }
         if isinstance(groups, dict) and any(isinstance(v, dict) for v in groups.values()):
