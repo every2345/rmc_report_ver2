@@ -3365,9 +3365,6 @@ def create_new_window_note():
 # == Cửa sổ hình ảnh ==
 def create_new_window_image_daviteq(title):
     # =====================================================
-    # BUILD IMAGE MAPPING FROM LOCAL
-    # =====================================================
-    # =====================================================
     # BUILD IMAGE MAPPING FROM LOCAL (ĐỒNG BỘ HAI NHÁNH THƯ MỤC)
     # =====================================================
     def build_image_mapping():
@@ -3385,10 +3382,7 @@ def create_new_window_image_daviteq(title):
 
         result = {}
         for category, folders_list in image_roots.items():
-            # create per-group containers
             result[category] = {g: {} for g in group_names}
-
-            # Duyệt qua từng thư mục cấu hình (quét cả GMS lẫn Maxvalu)
             for idx, folder in enumerate(folders_list):
                 group = group_names[idx] if idx < len(group_names) else f'GROUP{idx}'
                 if not os.path.exists(folder):
@@ -3397,41 +3391,30 @@ def create_new_window_image_daviteq(title):
                     filepath = os.path.join(folder, filename)
                     if not os.path.isfile(filepath):
                         continue
-
-                    # ignore hidden/dot files and non-image files
                     if filename.startswith('.'):
                         continue
                     _, ext = os.path.splitext(filename)
                     if ext.lower() not in image_exts:
                         continue
-
-                    # Bỏ extension (.png, .jpg...)
                     name_without_ext = os.path.splitext(filename)[0]
-                    # Split theo ký tự "_"
                     parts = name_without_ext.split("_")
-
-                    # Định dạng chuẩn: NVL_DELICA hoặc TQB_BAKERY
                     if len(parts) < 2:
                         continue
-
                     area = parts[0].upper()
                     device = "_".join(parts[1:])
-
                     if area not in result[category][group]:
                         result[category][group][area] = []
-
                     result[category][group][area].append({
                         "device": device,
                         "path": filepath,
                         "filename": filename
                     })
-
-        # Sắp xếp lại thứ tự thiết bị (Device) theo Alphabet để hiển thị đẹp mắt
         for category in result:
             for group in result[category]:
                 for area in result[category][group]:
                     result[category][group][area].sort(key=lambda x: x["device"])
         return result
+
     # =====================================================
     # SHOW IMAGES
     # =====================================================
@@ -3443,142 +3426,57 @@ def create_new_window_image_daviteq(title):
                 img_path = item["path"]
                 device_name = item["device"]
                 img = Image.open(img_path)
-                img.thumbnail(
-                    (140, 100),
-                    Image.Resampling.LANCZOS
-                )
+                img.thumbnail((140, 100), Image.Resampling.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
                 row = idx // max_columns
                 col = idx % max_columns
-                # =============================================
-                # ITEM FRAME
-                # =============================================
-                item_frame = tk.Frame(
-                    image_frame,
-                    bg="white"
-                )
-                item_frame.grid(
-                    row=row,
-                    column=col,
-                    padx=10,
-                    pady=10
-                )
-                # =============================================
-                # IMAGE BUTTON
-                # =============================================
-                label_img = tk.Label(
-                    item_frame,
-                    image=photo,
-                    bg="white",
-                    cursor="hand2"
-                )
-
+                item_frame = tk.Frame(image_frame, bg="white")
+                item_frame.grid(row=row, column=col, padx=10, pady=10)
+                label_img = tk.Label(item_frame, image=photo, bg="white", cursor="hand2")
                 label_img.image = photo
                 label_img.pack()
-                # =============================================
-                # DEVICE LABEL
-                # =============================================
-                label_text = tk.Label(
-                    item_frame,
-                    text=device_name,
-                    bg="white",
-                    font=("Arial", 10, "bold"),
-                    wraplength=140,
-                    justify="center"
-                )
-
-                label_text.pack(
-                    pady=(5, 0)
-                )
-                # =============================================
-                # OPEN LARGE IMAGE
-                # =============================================
-                label_img.bind(
-                    "<Button-1>",
-                    lambda e, p=img_path:
-                        open_large_image(p)
-                )
+                label_text = tk.Label(item_frame, text=device_name, bg="white", font=("Arial", 10, "bold"), wraplength=140, justify="center")
+                label_text.pack(pady=(5, 0))
+                label_img.bind("<Button-1>", lambda e, p=img_path: open_large_image(p))
             except Exception as e:
-                print(
-                    f"❌ Lỗi xử lý ảnh: {e}"
-                )
+                print(f"❌ Lỗi xử lý ảnh: {e}")
+
     # =====================================================
     # OPEN LARGE IMAGE
     # =====================================================
     def open_large_image(img_path):
         try:
             img = Image.open(img_path)
-            # scale 50%
             scale_factor = 0.5
-            new_size = (
-                int(img.width * scale_factor),
-                int(img.height * scale_factor)
-            )
-            img_resized = img.resize(
-                new_size,
-                Image.Resampling.LANCZOS
-            )
+            new_size = (int(img.width * scale_factor), int(img.height * scale_factor))
+            img_resized = img.resize(new_size, Image.Resampling.LANCZOS)
             photo = ImageTk.PhotoImage(img_resized)
             popup = tk.Toplevel(new_window)
             popup.title("DAVITEQ IMAGE DATA")
             popup.configure(bg="white")
-            lbl = tk.Label(
-                popup,
-                image=photo,
-                bg="white"
-            )
-
+            lbl = tk.Label(popup, image=photo, bg="white")
             lbl.image = photo
-
-            lbl.pack(
-                padx=10,
-                pady=10
-            )
-
-            btn = tk.Button(
-                popup,
-                text="Open Image",
-                font=("Arial", 10, "bold"),
-                command=lambda:
-                    open_image_external(img_path)
-            )
-
-            btn.pack(
-                pady=10
-            )
-
+            lbl.pack(padx=10, pady=10)
+            btn = tk.Button(popup, text="Open Image", font=("Arial", 10, "bold"), command=lambda: open_image_external(img_path))
+            btn.pack(pady=10)
         except Exception as e:
+            print(f"❌ Lỗi mở ảnh lớn: {e}")
 
-            print(
-                f"❌ Lỗi mở ảnh lớn: {e}"
-            )
     # =====================================================
     # OPEN IMAGE EXTERNAL
     # =====================================================
     def open_image_external(path):
-
         try:
-
             os.startfile(path)
-
         except Exception as e:
+            print(f"❌ Lỗi mở ảnh: {e}")
 
-            print(
-                f"❌ Lỗi mở ảnh: {e}"
-            )
     # =====================================================
     # SUB BUTTON CLICK
     # =====================================================
-    def on_sub_button_click(
-        btn_clicked,
-        image_list
-    ):
-
+    def on_sub_button_click(btn_clicked, image_list):
         nonlocal selected_sub_button
-
-        # reset all button
         for frames in category_frames.values():
-            # frames can be a Frame or a dict of group->Frame
             if isinstance(frames, dict):
                 for f in frames.values():
                     for widget in f.winfo_children():
@@ -3590,27 +3488,20 @@ def create_new_window_image_daviteq(title):
                         widget.config(bg="white", fg="black")
 
         selected_sub_button = btn_clicked
-
-        selected_sub_button.config(
-            bg="#4CAF50",
-            fg="white"
-        )
-
+        selected_sub_button.config(bg="#4CAF50", fg="white")
         show_images(image_list)
+
     # =====================================================
     # TOGGLE CATEGORY
     # =====================================================
     def toggle_sub_buttons(category_name):
-
         nonlocal selected_parent_button
-        # reset all parent button
         for btn in parent_buttons.values():
             btn.configure(bg="white", fg="black")
 
         selected_parent_button = parent_buttons[category_name]
         selected_parent_button.configure(bg="#247985", fg="white")
 
-        # hide all frames (handle nested group frames)
         for cat, frames in category_frames.items():
             if isinstance(frames, dict):
                 for f in frames.values():
@@ -3624,7 +3515,6 @@ def create_new_window_image_daviteq(title):
                 except Exception:
                     pass
 
-        # show selected group's subframe for this category
         try:
             grp = selected_group.get()
         except Exception:
@@ -3638,16 +3528,17 @@ def create_new_window_image_daviteq(title):
             frame_to_show = cat_frames
 
         if frame_to_show:
-            frame_to_show.pack(fill="y")
-            # auto-select first area button in this frame so images appear immediately
+            # SỬA LỖI Ở ĐÂY: Thay vì fill="y", đổi thành fill="both", expand=True 
+            # để khung chứa các nút mở rộng đầy đủ theo chiều ngang
+            frame_to_show.pack(fill="both", expand=True) 
             try:
                 for w in frame_to_show.winfo_children():
                     if isinstance(w, tk.Button):
-                        # invoke the button (runs its command) to show images
                         w.invoke()
                         break
             except Exception:
                 pass
+
     # =====================================================
     # WINDOW
     # =====================================================
@@ -3655,83 +3546,40 @@ def create_new_window_image_daviteq(title):
     new_window.title(title)
     new_window.geometry("1200x650")
     new_window.configure(bg="white")
-    # =====================================================
-    # LEFT FRAME
-    # =====================================================
-    left_frame = tk.Frame(
-        new_window,
-        width=170,
-        bg="#f0f0f0"
-    )
 
-    left_frame.pack(
-        side="left",
-        fill="y"
-    )
+    left_frame = tk.Frame(new_window,width=170,bg="#f0f0f0")
+    left_frame.pack(side="left",fill="y")
 
-    # (search entry moved into sub_button_frame below group buttons)
-    # =====================================================
-    # SUB BUTTON FRAME
-    # =====================================================
-    sub_button_frame = tk.Frame(
-        new_window,
-        width=260,
-        bg="#e8e8e8"
-    )
+    sub_button_frame = tk.Frame(new_window,bg="#e8e8e8")
+    sub_button_frame.pack(side="left",fill="y")
 
-    sub_button_frame.pack(side="left",fill="y"
-    )
-    # =====================================================
-    # RIGHT FRAME
-    # =====================================================
     right_frame = tk.Frame(new_window,bg="white")
     right_frame.pack(side="right",fill="both",expand=True)
-    # =====================================================
-    # SCROLLABLE CANVAS
-    # =====================================================
+
     canvas = tk.Canvas(right_frame,bg="white")
     scrollbar = tk.Scrollbar(right_frame,orient="vertical",command=canvas.yview)
     scrollable_frame = tk.Frame(canvas,bg="white")
-    scrollable_frame.bind(
-        "<Configure>",
-        lambda e: canvas.configure(
-            scrollregion=canvas.bbox("all")
-        )
-    )
-    canvas.create_window(
-        (0, 0),
-        window=scrollable_frame,
-        anchor="nw"
-    )
+    scrollable_frame.bind("<Configure>",lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas.create_window((0, 0),window=scrollable_frame,anchor="nw")
     canvas.configure(yscrollcommand=scrollbar.set)
     canvas.pack(side="left",fill="both",expand=True)
     scrollbar.pack(side="right",fill="y")
     image_frame = scrollable_frame
-    # =====================================================
-    # VARIABLES
-    # =====================================================
+
     category_frames = {}
     parent_buttons = {}
     selected_sub_button = None
     selected_parent_button = None
     max_columns = 5
-    # currently selected image group (controls which subframe to show)
     selected_group = tk.StringVar(value='AEONGMS')
-    # =====================================================
-    # LOAD LOCAL IMAGE DATA
-    # =====================================================
+
     category_images = build_image_mapping()
     print("✅ IMAGE MAPPING:")
-    print(json.dumps(
-        category_images,
-        indent=4,
-        ensure_ascii=False
-    ))
+    print(json.dumps(category_images,indent=4,ensure_ascii=False))
+    
     # =====================================================
     # BUILD GUI DYNAMIC (group selector + per-group area lists)
     # =====================================================
-    # BUILD GUI DYNAMIC
-    # Group selector (AEONGMS / MAXVALU) on top of sub_button_frame
     group_buttons_frame = tk.Frame(sub_button_frame, bg=sub_button_frame.cget('bg'))
     group_buttons_frame.pack(fill='x', pady=(6, 4))
 
@@ -3740,7 +3588,6 @@ def create_new_window_image_daviteq(title):
             selected_group.set(g)
         except Exception:
             pass
-        # update group button visuals
         try:
             if g == 'AEONGMS':
                 btn_aeon.config(bg='#2196F3', fg='white')
@@ -3751,27 +3598,25 @@ def create_new_window_image_daviteq(title):
         except Exception:
             pass
 
-        # refresh visible areas when group changes
         if selected_parent_button is not None:
             for name, btn in parent_buttons.items():
                 if btn == selected_parent_button:
                     toggle_sub_buttons(name)
                     break
 
-    btn_aeon = tk.Button(group_buttons_frame, text='AEONGMS', width=12, bg='#2196F3', fg='white', font=("Arial", 10, "bold"), command=lambda: set_group('AEONGMS'))
-    btn_max = tk.Button(group_buttons_frame, text='MAXVALU', width=12, bg='white', fg='black', font=("Arial", 10, "bold"), command=lambda: set_group('MAXVALU'))
-    btn_aeon.pack(side='left', padx=(8,4), pady=4)
-    btn_max.pack(side='left', padx=(4,8), pady=4)
+    btn_aeon = tk.Button(group_buttons_frame, text='AEONGMS', bg='#2196F3', fg='white', font=("Arial", 10, "bold"), command=lambda: set_group('AEONGMS'))
+    btn_max = tk.Button(group_buttons_frame, text='MAXVALU', bg='white', fg='black', font=("Arial", 10, "bold"), command=lambda: set_group('MAXVALU'))
+    btn_aeon.pack(side='left', expand=True, fill='x', padx=(12, 4), pady=4)
+    btn_max.pack(side='left', expand=True, fill='x', padx=(4, 28), pady=4)
 
-    # SEARCH for parent buttons (placed below group buttons to match mockup)
     parent_search_frame = tk.Frame(sub_button_frame, bg=sub_button_frame.cget('bg'))
-    parent_search_frame.pack(fill='x', pady=(4, 6), padx=8)
+    parent_search_frame.pack(fill='x', pady=(4, 6), padx=(12, 28)) 
+    
     search_parent_var_local = tk.StringVar()
-    search_parent_entry_local = tk.Entry(parent_search_frame, textvariable=search_parent_var_local, font=("Arial", 10))
-    search_parent_entry_local.pack(fill='x')
+    search_parent_entry_local = tk.Entry(parent_search_frame, textvariable=search_parent_var_local, font=("Arial", 11))
+    search_parent_entry_local.pack(fill='x', ipady=4) 
 
-    # container for area frames beneath the group buttons (scrollable)
-    area_canvas = tk.Canvas(sub_button_frame, bg="#e8e8e8", highlightthickness=0)
+    area_canvas = tk.Canvas(sub_button_frame, bg="#e8e8e8", highlightthickness=0, width=230) 
     area_scrollbar = tk.Scrollbar(sub_button_frame, orient="vertical", command=area_canvas.yview)
     area_canvas.configure(yscrollcommand=area_scrollbar.set)
     area_canvas.pack(side='left', fill='y', expand=True)
@@ -3787,7 +3632,6 @@ def create_new_window_image_daviteq(title):
             pass
     area_container.bind("<Configure>", on_area_container_config)
 
-    # keep area frame width in sync with canvas width to avoid wrapping
     def on_area_canvas_config(event):
         try:
             area_canvas.itemconfig(area_window_id, width=event.width)
@@ -3795,19 +3639,12 @@ def create_new_window_image_daviteq(title):
             pass
     area_canvas.bind('<Configure>', on_area_canvas_config)
 
-    # -----------------------------------------------------
-    # Container in LEFT FRAME to hold parent button blocks
     parent_list_container = tk.Frame(left_frame, bg=left_frame.cget('bg'))
     parent_list_container.pack(fill='both', expand=True, pady=(6,0))
 
-    # Local tracking list for parent buttons to support search/reorder
-    # Each entry is (block_frame, parent_button)
     parent_items = []
     parent_area_map = {}
 
-    # -----------------------------------------------------
-    # Filter function to push matching parent buttons to top
-    # -----------------------------------------------------
     def filter_parent_buttons_local(event=None):
         keyword = search_parent_entry_local.get().strip().lower()
         matches = []
@@ -3816,12 +3653,9 @@ def create_new_window_image_daviteq(title):
         for block, btn in parent_items:
             text = btn.cget('text').lower()
             is_match = False
-
-            # direct match on parent button text
             if keyword == '' or keyword in text:
                 is_match = True
             else:
-                # also search inside precomputed area name map for this category
                 try:
                     category_name = btn.cget('text')
                     areas = parent_area_map.get(category_name, set())
@@ -3835,32 +3669,26 @@ def create_new_window_image_daviteq(title):
             else:
                 non_matches.append((block, btn))
 
-        # remove all from layout
         for block, btn in parent_items:
             try:
                 block.pack_forget()
             except Exception:
                 pass
-
-        # pack matches first
         for block, btn in matches:
             try:
                 block.pack(fill='x', padx=5, pady=4)
             except Exception:
                 pass
-
-        # then non-matches
         for block, btn in non_matches:
             try:
                 block.pack(fill='x', padx=5, pady=4)
             except Exception:
                 pass
-        # ensure layout refresh
         try:
             parent_list_container.update_idletasks()
         except Exception:
             pass
-        # Also reorder area buttons in the middle column so matched areas appear first
+            
         try:
             kw = keyword
             if kw:
@@ -3878,12 +3706,12 @@ def create_new_window_image_daviteq(title):
                                         pass
                                 for b in matches_a:
                                     try:
-                                        b.pack(padx=10, pady=6)
+                                        b.pack(fill='x', padx=12, pady=6)
                                     except Exception:
                                         pass
                                 for b in others_a:
                                     try:
-                                        b.pack(padx=10, pady=6)
+                                        b.pack(fill='x', padx=12, pady=6)
                                     except Exception:
                                         pass
                             except Exception:
@@ -3901,22 +3729,22 @@ def create_new_window_image_daviteq(title):
                                     pass
                             for b in matches_a:
                                 try:
-                                    b.pack(padx=10, pady=6)
+                                    b.pack(fill='x', padx=12, pady=6)
                                 except Exception:
                                     pass
                             for b in others_a:
                                 try:
-                                    b.pack(padx=10, pady=6)
+                                    b.pack(fill='x', padx=12, pady=6)
                                 except Exception:
                                     pass
                         except Exception:
                             pass
         except Exception:
             pass
+            
     search_parent_entry_local.bind('<KeyRelease>', lambda e: filter_parent_buttons_local(e))
 
     for category_name, groups in category_images.items():
-        # create a block frame inside parent_list_container so we can pack_forget / repack when filtering
         block = tk.Frame(parent_list_container, bg=left_frame.cget('bg'))
         parent_btn = tk.Button(
             block,
@@ -3932,7 +3760,6 @@ def create_new_window_image_daviteq(title):
         parent_buttons[category_name] = parent_btn
         parent_items.append((block, parent_btn))
 
-        # build list of area names under this category for fast lookup
         area_names = set()
         try:
             groups_obj = groups
@@ -3942,7 +3769,6 @@ def create_new_window_image_daviteq(title):
                         for a in area_dict.keys():
                             area_names.add(str(a).strip().lower())
                     else:
-                        # list of dicts with 'device' keys
                         for it in area_dict:
                             try:
                                 nm = it.get('device') or it.get('filename') or ''
@@ -3954,7 +3780,6 @@ def create_new_window_image_daviteq(title):
             pass
         parent_area_map[category_name] = area_names
 
-        # support grouped structure: groups may be { 'AEONGMS': {area: [items]}, 'MAXVALU': {...} }
         if isinstance(groups, dict) and any(isinstance(v, dict) for v in groups.values()):
             category_frames[category_name] = {}
             for group_name, area_dict in groups.items():
@@ -3962,43 +3787,28 @@ def create_new_window_image_daviteq(title):
                 category_frames[category_name][group_name] = sub_frame
                 for area_name, image_list in area_dict.items():
                     sub_btn = tk.Button(sub_frame, text=area_name, pady=8, relief="raised", bg="white", fg="black", font=("Arial", 10, "bold"), bd=1, activebackground="#e0e0e0")
-                    try:
-                        sub_btn.config(width=26)
-                    except Exception:
-                        pass
-                    sub_btn.pack(padx=10, pady=6)
-                    # attach image list to button so we can access it later
+                    sub_btn.pack(fill='x', padx=12, pady=6)
                     sub_btn.image_list = image_list
                     sub_btn.config(command=lambda b=sub_btn: on_sub_button_click(b, b.image_list))
         else:
-            # legacy flat structure
             sub_frame = tk.Frame(area_container, bg="#e8e8e8")
             category_frames[category_name] = sub_frame
             for area_name, image_list in groups.items():
                 sub_btn = tk.Button(sub_frame, text=area_name, pady=8, relief="raised", bg="white", fg="black", font=("Arial", 10, "bold"), bd=1, activebackground="#e0e0e0")
-                try:
-                    sub_btn.config(width=24)
-                except Exception:
-                    pass
-                sub_btn.pack(padx=10, pady=6)
+                sub_btn.pack(fill='x', padx=12, pady=6)
                 sub_btn.image_list = image_list
                 sub_btn.config(command=lambda b=sub_btn: on_sub_button_click(b, b.image_list))
 
-    # =====================================================
-    # AUTO SELECT FIRST CATEGORY
-    # =====================================================
     if category_images:
         first_category = list(category_images.keys())[0]
         toggle_sub_buttons(first_category)
 
-        # choose group from selected_group var
         grp = 'AEONGMS'
         try:
             grp = selected_group.get()
         except Exception:
             pass
 
-        # find first area in that group (fallback to any group)
         group_dict = category_images[first_category]
         if grp not in group_dict:
             grp = next(iter(group_dict.keys()))
