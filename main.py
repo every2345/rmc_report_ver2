@@ -19,8 +19,8 @@ import schedule
 from tkcalendar import DateEntry
 import pandas as pd
 import numpy as np
-from openpyxl import load_workbook
-from openpyxl.styles import PatternFill, Font, Alignment
+import openpyxl
+from openpyxl.utils import column_index_from_string
 
 # ==== Khởi tạo Tkinter root trước ====
 root = tk.Tk()
@@ -42,6 +42,7 @@ documentary_archive_url = f"{BASE_URL}/DOCUMENTARY"
 CLIENT_ID = "ac4edccf-a8ee-41aa-bcc4-6603c4bebae1"
 TENANT_ID = "5983a1d2-f46b-492d-a9b3-7e2f3609d20b"
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+
 # Need write permission to upload back to OneDrive. Change to Files.ReadWrite or Files.ReadWrite.All if admin consent required.
 GRAPH_SCOPES = ["Files.ReadWrite"]
 CACHE_DIR = r"D:\RMC_Assistant_v3\Cache"
@@ -70,6 +71,11 @@ NOTE_ARCHIVE_DIR = os.path.join(APP_ROOT, "NOTE")
 IMAGE_ROOT_DIR = os.path.join(APP_ROOT, "IMAGE")
 AEONGMSIMG_DIR = os.path.join(IMAGE_ROOT_DIR, "AEONGMS")
 MAXVALUIMG_DIR = os.path.join(IMAGE_ROOT_DIR, "MAXVALU")
+# ==========================================================
+# ECMS
+# ==========================================================
+ECMS_ROOT_DIR = os.path.join(APP_ROOT, "ECMS")
+ECMS_DIR = os.path.join(ECMS_ROOT_DIR, "ECMS")
 
 # AEON GMS IMG ARCHIVE
 AEONGMS_IMAGE_LAYOUT_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "LAYOUT")
@@ -103,6 +109,7 @@ folders = [
     AEONMAXVALU_DIR,
     NOTE_ARCHIVE_DIR,
     IMAGE_ROOT_DIR,
+    ECMS_DIR,
     
     # Nhánh thư mục AEON GMS
     AEONGMSIMG_DIR,
@@ -1006,6 +1013,25 @@ def get_save_dir_from_path(folder_path):
     # =====================================================
     elif "NOTE" in path_upper:
         return NOTE_ARCHIVE_DIR
+
+    # =====================================================
+    # ECMS (dynamic) - create subfolder under APP_ROOT/ECMS when OneDrive path contains ECMS
+    # Example OneDrive paths: .../ECMS/CELADON, ...\ECMS\CELADON\SUB
+    # We map the first component after ECMS to a local subfolder.
+    elif "ECMS" in path_upper:
+        try:
+            # Normalize separators and split
+            parts = re.split(r'[\\/]+', folder_path)
+            idx = next((i for i, p in enumerate(parts) if p.strip().upper() == 'ECMS'), None)
+            if idx is not None and idx + 1 < len(parts) and parts[idx+1].strip() != '':
+                subfolder = parts[idx+1].strip()
+                local_dir = os.path.join(ECMS_ROOT_DIR, subfolder)
+            else:
+                local_dir = ECMS_DIR
+            os.makedirs(local_dir, exist_ok=True)
+            return local_dir
+        except Exception:
+            return ECMS_DIR
 
     return None
 
@@ -2881,236 +2907,437 @@ def create_new_window_status(title, content=None):
 # == Cửa sổ ECMS ==
 def create_new_window_ecms():
     # ================= HÀM DÙNG CHUNG =================
-    def browse_file(entry_widget, title, is_save=False):
-        if is_save:
-            filepath = filedialog.asksaveasfilename(
-                title=title,
-                defaultextension=".xlsx",
-                filetypes=[("Excel files", "*.xlsx")],
-                initialfile="Output_Report.xlsx"
-            )
-        else:
-            filepath = filedialog.askopenfilename(
-                title=title,
-                filetypes=[("Excel files", "*.xlsx *.xls")]
-            )
-    
+    def browse_file(entry_widget, title):
+        filepath = filedialog.askopenfilename(
+            title=title,
+            filetypes=[("Excel files", "*.xlsx *.xls")]
+        )
         if filepath:
             entry_widget.delete(0, tk.END)
             entry_widget.insert(0, filepath)
-    def apply_excel_formatting(filepath):
-        """Hàm dùng chung để định dạng màu sắc và phần trăm cho file Excel đầu ra."""
-        wb = load_workbook(filepath)
-        ws = wb.active
 
-        fill_header = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-        font_header = Font(bold=True)
-        fill_high = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
-        font_high = Font(color="FFFFFF", bold=True)
-        fill_medium = PatternFill(start_color="FFC000", end_color="FFC000", fill_type="solid")
-        font_medium = Font(color="000000", bold=True)
-        fill_low = PatternFill(start_color="00B050", end_color="00B050", fill_type="solid")
-        font_low = Font(color="000000", bold=True)
+    def clean_percent(val):
+        if val is None: return -float('inf')
+        if isinstance(val, str):
+            val = val.replace('%', '').strip()
+            try: return float(val)
+            except ValueError: return -float('inf')
+        return float(val)
 
-        headers = [cell.value for cell in ws[1]]
-        try: col_alarm_idx = headers.index('Level Alarm') + 1
-        except ValueError: col_alarm_idx = None
+    # ================= LOGIC CHỨC NĂNG =================
+    col_names = ['Point', 'KPI Target', 'Actual', 'Difference', 'Lvl Alarm', 'Status', 'Assigned', 'Reason']
+    default_cols = ['D', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
+
+    def setup_treeview(tree):
+        """Cấu hình Treeview và tính năng nhấp đúp để chỉnh sửa"""
+        tree['columns'] = ["RowIdx"] + col_names
+        tree.column("#0", width=0, stretch=tk.NO)
+        tree.column("RowIdx", width=0, stretch=tk.NO) 
+    
+        for col in col_names:
+            tree.column(col, anchor=tk.CENTER, width=85)
+            tree.heading(col, text=col)
+
+        def on_double_click(event):
+            region = tree.identify("region", event.x, event.y)
+            if region != "cell": return
         
-        try: col_diff_idx = headers.index('Difference') + 1
-        except ValueError: col_diff_idx = None
-
-        for cell in ws[1]:
-            cell.fill = fill_header
-            cell.font = font_header
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-
-        for row in range(2, ws.max_row + 1):
-            if col_alarm_idx:
-                alarm_cell = ws.cell(row=row, column=col_alarm_idx)
-                val = str(alarm_cell.value).strip().lower() if alarm_cell.value else ""
-            
-                if val == 'high':
-                    alarm_cell.fill = fill_high
-                    alarm_cell.font = font_high
-                elif val == 'medium':
-                    alarm_cell.fill = fill_medium
-                    alarm_cell.font = font_medium
-                elif val == 'low':
-                    alarm_cell.fill = fill_low
-                    alarm_cell.font = font_low
-            
-                alarm_cell.alignment = Alignment(horizontal="center")
+            column = tree.identify_column(event.x)
+            if column == "#1": return 
         
-            if col_diff_idx:
-                diff_cell = ws.cell(row=row, column=col_diff_idx)
-                if isinstance(diff_cell.value, (int, float)):
-                    diff_cell.number_format = '0.0"%"' 
-        wb.save(filepath)
-    # ================= LOGIC CHỨC NĂNG 1: SẮP XẾP =================
-    def sort_and_export():
-        in_path = entry_sort_in.get()
-        out_path = entry_sort_out.get()
-        filter_date = entry_sort_date.get().strip()
+            row = tree.identify_row(event.y)
+            x, y, width, height = tree.bbox(row, column)
+            value = tree.set(row, column)
+        
+            entry = tk.Entry(tree)
+            entry.place(x=x, y=y, width=width, height=height)
+            entry.insert(0, value)
+            entry.focus_set()
+        
+            def save_edit(event=None):
+                tree.set(row, column, entry.get())
+                entry.destroy()
+            
+            entry.bind("<Return>", save_edit)
+            entry.bind("<FocusOut>", save_edit)
 
-        if not in_path or not out_path:
-            messagebox.showwarning("Cảnh báo", "Vui lòng chọn đầy đủ file đầu vào và nơi lưu.")
+        tree.bind("<Double-1>", on_double_click)
+
+    def toggle_accordion(active_tree):
+        """Hàm quản lý việc Mở 1 bảng và Đóng các bảng còn lại"""
+        sections = [
+            (tree_high, btn_high, "High alarm"),
+            (tree_med, btn_med, "Medium"),
+            (tree_low, btn_low, "Low")
+        ]
+    
+        is_active_open = active_tree.winfo_ismapped()
+    
+        for tree, btn, title in sections:
+            tree.pack_forget()
+            count = len(tree.get_children())
+            btn.config(text=f"(v) {title} - {count} alarms")
+        
+        if not is_active_open:
+            active_tree.pack(fill="x", padx=10, pady=2)
+            for tree, btn, title in sections:
+                if tree == active_tree:
+                    count = len(tree.get_children())
+                    btn.config(text=f"(^) {title} - {count} alarms")
+                    break
+
+    def read_excel():
+        filepath = entry_read_in.get()
+        if not filepath:
+            messagebox.showwarning("Cảnh báo", "Vui lòng chọn file Excel.")
             return
 
-        try:
-            df = pd.read_excel(in_path)
-            if 'Level Alarm' not in df.columns or 'Difference' not in df.columns:
-                messagebox.showerror("Lỗi Dữ Liệu", "File đầu vào không chứa cột 'Level Alarm' hoặc 'Difference'.")
+        col_mapping = {}
+        for i, col in enumerate(col_names):
+            val = entry_cols[i].get().strip().upper()
+            if not val.isalpha():
+                messagebox.showerror("Lỗi", f"Vị trí cột '{col}' không hợp lệ (Phải là chữ cái).")
                 return
+            col_mapping[col] = val
 
-            priority_map = {'high': 1, 'medium': 2, 'low': 3}
+        try:
+            wb = openpyxl.load_workbook(filepath, data_only=True)
+            ws = wb.active
 
-            def clean_pct(val):
-                if pd.isna(val): return -np.inf
-                if isinstance(val, str):
-                    val = val.replace('%', '').strip()
-                    try: return float(val)
-                    except ValueError: return -np.inf
-                return float(val)
+            high_data, med_data, low_data = [], [], []
 
-            if filter_date:
-                if 'Date' not in df.columns:
-                    messagebox.showerror("Lỗi Dữ Liệu", "File không chứa cột 'Date' để lọc.")
-                    return
-                df['Temp_Date_Str'] = pd.to_datetime(df['Date'], errors='coerce').dt.strftime('%Y-%m-%d')
-                mask = df['Temp_Date_Str'] == filter_date
-                df_target = df[mask].copy()
-                df_other = df[~mask].copy()
+            for row_idx in range(2, ws.max_row + 1):
+                lvl_col_letter = col_mapping['Lvl Alarm']
+                lvl_val = str(ws.cell(row=row_idx, column=column_index_from_string(lvl_col_letter)).value or "").lower().strip()
             
-                if df_target.empty:
-                    messagebox.showwarning("Trống", f"Không tìm thấy dữ liệu cho ngày: {filter_date}")
-                    return
+                row_data = [row_idx]
+                for col in col_names:
+                    cell_val = ws.cell(row=row_idx, column=column_index_from_string(col_mapping[col])).value
+                    row_data.append("" if cell_val is None else cell_val)
+            
+                if 'high' in lvl_val: high_data.append(row_data)
+                elif 'medium' in lvl_val: med_data.append(row_data)
+                elif 'low' in lvl_val: low_data.append(row_data)
+
+            for tree in [tree_high, tree_med, tree_low]:
+                tree.delete(*tree.get_children())
+
+            high_data.sort(key=lambda x: clean_percent(x[4]), reverse=True)
+            med_data.sort(key=lambda x: clean_percent(x[4]), reverse=True)
+            low_data.sort(key=lambda x: clean_percent(x[4]), reverse=True)
+
+            for r in high_data: tree_high.insert("", tk.END, values=r)
+            for r in med_data: tree_med.insert("", tk.END, values=r)
+            for r in low_data: tree_low.insert("", tk.END, values=r)
+
+            btn_high.config(text=f"(v) High alarm - {len(high_data)} alarms", command=lambda: toggle_accordion(tree_high))
+            btn_med.config(text=f"(v) Medium - {len(med_data)} alarms", command=lambda: toggle_accordion(tree_med))
+            btn_low.config(text=f"(v) Low - {len(low_data)} alarms", command=lambda: toggle_accordion(tree_low))
+
+            tree_high.pack_forget()
+            tree_med.pack_forget()
+            tree_low.pack_forget()
+
+            messagebox.showinfo("Thành công", "Đọc dữ liệu thành công! Hãy bấm vào các nút (v) để mở ra và xem/chỉnh sửa.")
+
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể đọc file:\n{str(e)}")
+
+    def write_excel():
+        filepath = entry_read_in.get()
+        if not filepath: return
+    
+        try:
+            wb = openpyxl.load_workbook(filepath)
+            ws = wb.active
+
+            for tree in [tree_high, tree_med, tree_low]:
+                for child in tree.get_children():
+                    values = tree.item(child)['values']
+                    row_idx = int(values[0])
                 
-                df_target['Temp_Priority'] = df_target['Level Alarm'].astype(str).str.strip().str.lower().map(priority_map).fillna(4)
-                df_target['Temp_Diff'] = df_target['Difference'].apply(clean_pct)
-                df_target = df_target.sort_values(by=['Temp_Priority', 'Temp_Diff'], ascending=[True, False])
-            
-                df_target = df_target.drop(columns=['Temp_Priority', 'Temp_Diff', 'Temp_Date_Str'])
-                df_other = df_other.drop(columns=['Temp_Date_Str'])
-                df_final = pd.concat([df_target, df_other], ignore_index=True)
-            else:
-                df['Temp_Priority'] = df['Level Alarm'].astype(str).str.strip().str.lower().map(priority_map).fillna(4)
-                df['Temp_Diff'] = df['Difference'].apply(clean_pct)
-                df_final = df.sort_values(by=['Temp_Priority', 'Temp_Diff'], ascending=[True, False])
-                df_final = df_final.drop(columns=['Temp_Priority', 'Temp_Diff'])
+                    for i, col in enumerate(col_names):
+                        col_letter = entry_cols[i].get().strip().upper()
+                        new_val = values[i+1] 
+                    
+                        # Logic tự động điền "theo dõi thêm" cho cột Reason nếu ô trống
+                        if col == 'Reason':
+                            if new_val is None or str(new_val).strip() == "":
+                                new_val = "theo dõi thêm"
 
-            df_final.to_excel(out_path, index=False)
-            apply_excel_formatting(out_path)
-            messagebox.showinfo("Thành công", f"Đã sắp xếp và xuất file tại:\n{out_path}")
+                        ws.cell(row=row_idx, column=column_index_from_string(col_letter)).value = new_val
 
+            wb.save(filepath)
+            messagebox.showinfo("Thành công", f"Đã cập nhật dữ liệu trực tiếp vào file:\n{filepath}")
         except Exception as e:
-            messagebox.showerror("Lỗi hệ thống", f"Đã xảy ra lỗi:\n{str(e)}")
-    # ================= LOGIC CHỨC NĂNG 2: KHÔI PHỤC =================
-    def restore_order_and_export():
-        proc_path = entry_rest_proc.get()
-        orig_path = entry_rest_orig.get()
-        out_path = entry_rest_out.get()
+            messagebox.showerror("Lỗi", f"Không thể ghi file:\n{str(e)}")
 
-        if not proc_path or not orig_path or not out_path:
-            messagebox.showwarning("Cảnh báo", "Vui lòng chọn đầy đủ cả 3 đường dẫn (File xử lý, File gốc và Nơi lưu).")
-            return
-
-        try:
-            df_proc = pd.read_excel(proc_path)
-            df_orig = pd.read_excel(orig_path)
-
-            if 'ID' not in df_proc.columns or 'ID' not in df_orig.columns:
-                messagebox.showerror("Lỗi Dữ Liệu", "Cả hai file đều phải có cột 'ID' để có thể đối chiếu vị trí.")
-                return
-
-            order_mapping = {id_val: idx for idx, id_val in enumerate(df_orig['ID'])}
-            df_proc['Temp_Order'] = df_proc['ID'].map(order_mapping)
-        
-            max_order = len(order_mapping)
-            df_proc['Temp_Order'] = df_proc['Temp_Order'].fillna(max_order)
-
-            df_final = df_proc.sort_values(by='Temp_Order', ascending=True)
-            df_final = df_final.drop(columns=['Temp_Order'])
-
-            df_final.to_excel(out_path, index=False)
-            apply_excel_formatting(out_path)
-            messagebox.showinfo("Thành công", f"Đã khôi phục vị trí và xuất file tại:\n{out_path}")
-
-        except Exception as e:
-            messagebox.showerror("Lỗi hệ thống", f"Đã xảy ra lỗi:\n{str(e)}")
-    # ================= CHUYỂN ĐỔI GIAO DIỆN =================
-    def show_sorter():
-        frame_restore_main.pack_forget()
-        frame_sort_main.pack(fill="both", expand=True)
-        btn_tab_sort.config(bg="#2c3e50", fg="white")
-        btn_tab_restore.config(bg="#ecf0f1", fg="black")
-    def show_restorer():
-        frame_sort_main.pack_forget()
-        frame_restore_main.pack(fill="both", expand=True)
-        btn_tab_restore.config(bg="#2c3e50", fg="white")
-        btn_tab_sort.config(bg="#ecf0f1", fg="black")
     # ================= KHỞI TẠO GIAO DIỆN CHÍNH =================
     root = tk.Tk()
     root.title("Công Cụ Quản Lý Dữ Liệu Báo Cáo")
-    root.geometry("680x320")
+    root.geometry("850x550")
     root.resizable(False, False)
 
-    # --- MENU CHUYỂN TAB ---
-    frame_tabs = tk.Frame(root, bg="#bdc3c7")
-    frame_tabs.pack(fill="x")
+    frame_main = tk.Frame(root)
+    frame_main.pack(fill="both", expand=True)
 
-    btn_tab_sort = tk.Button(frame_tabs, text="1. SẮP XẾP DỮ LIỆU", font=("Arial", 11, "bold"), relief="flat", command=show_sorter)
-    btn_tab_sort.pack(side="left", fill="x", expand=True, ipady=5)
+    # 1. Row chọn file + Nút Read
+    frame_top = tk.Frame(frame_main)
+    frame_top.pack(pady=10, padx=10, fill="x")
+    tk.Label(frame_top, text="Dán link local Excel:", font=("Arial", 10, "bold")).pack(side="left")
+    entry_read_in = tk.Entry(frame_top, font=("Arial", 10))
+    entry_read_in.pack(side="left", fill="x", expand=True, padx=5)
+    tk.Button(frame_top, text="Chọn...", command=lambda: browse_file(entry_read_in, "Chọn Excel")).pack(side="left")
+    tk.Button(frame_top, text="Read", bg="#3498db", fg="white", font=("Arial", 10, "bold"), width=10, command=read_excel).pack(side="left", padx=5)
 
-    btn_tab_restore = tk.Button(frame_tabs, text="2. KHÔI PHỤC VỊ TRÍ GỐC", font=("Arial", 11, "bold"), relief="flat", command=show_restorer)
-    btn_tab_restore.pack(side="left", fill="x", expand=True, ipady=5)
-    # ================= KHUNG CHỨC NĂNG 1: SẮP XẾP =================
-    frame_sort_main = tk.Frame(root)
-    tk.Label(frame_sort_main, text="Sắp Xếp Alarm Mức Độ Cảnh Báo", font=("Arial", 12, "bold"), fg="#2980b9").pack(pady=10)
-    frame_sort_1 = tk.Frame(frame_sort_main)
-    frame_sort_1.pack(pady=5, padx=15, fill="x")
-    tk.Label(frame_sort_1, text="File Cần Sắp Xếp:", width=22, anchor="w", font=("Arial", 10)).pack(side="left")
-    entry_sort_in = tk.Entry(frame_sort_1, font=("Arial", 10))
-    entry_sort_in.pack(side="left", fill="x", expand=True, padx=5)
-    tk.Button(frame_sort_1, text="Chọn File...", command=lambda: browse_file(entry_sort_in, "Chọn File Cần Sắp Xếp"), width=10).pack(side="right")
-    frame_sort_2 = tk.Frame(frame_sort_main)
-    frame_sort_2.pack(pady=5, padx=15, fill="x")
-    tk.Label(frame_sort_2, text="Lọc theo ngày (YYYY-MM-DD):", width=22, anchor="w", font=("Arial", 10)).pack(side="left")
-    entry_sort_date = tk.Entry(frame_sort_2, font=("Arial", 10))
-    entry_sort_date.pack(side="left", fill="x", expand=True, padx=5)
-    tk.Label(frame_sort_2, text="(Trống = Sắp xếp tất cả)", font=("Arial", 8, "italic"), fg="gray").pack(side="right")
-    frame_sort_3 = tk.Frame(frame_sort_main)
-    frame_sort_3.pack(pady=5, padx=15, fill="x")
-    tk.Label(frame_sort_3, text="Lưu File Tại:", width=22, anchor="w", font=("Arial", 10)).pack(side="left")
-    entry_sort_out = tk.Entry(frame_sort_3, font=("Arial", 10))
-    entry_sort_out.pack(side="left", fill="x", expand=True, padx=5)
-    tk.Button(frame_sort_3, text="Lưu Ở...", command=lambda: browse_file(entry_sort_out, "Lưu File Đã Sắp Xếp", True), width=10).pack(side="right")
-    tk.Button(frame_sort_main, text="Bắt Đầu Sắp Xếp", command=sort_and_export, bg="#2980b9", fg="white", font=("Arial", 11, "bold"), padx=10).pack(pady=15)
-    # ================= KHUNG CHỨC NĂNG 2: KHÔI PHỤC =================
-    frame_restore_main = tk.Frame(root)
-    tk.Label(frame_restore_main, text="Đồng Bộ Vị Trí Gốc", font=("Arial", 12, "bold"), fg="#27ae60").pack(pady=10)
-    frame_rest_1 = tk.Frame(frame_restore_main)
-    frame_rest_1.pack(pady=5, padx=15, fill="x")
-    tk.Label(frame_rest_1, text="1. File Cần Xử Lý (Đã đổi):", width=25, anchor="w", font=("Arial", 10, "bold")).pack(side="left")
-    entry_rest_proc = tk.Entry(frame_rest_1, font=("Arial", 10))
-    entry_rest_proc.pack(side="left", fill="x", expand=True, padx=5)
-    tk.Button(frame_rest_1, text="Chọn File...", command=lambda: browse_file(entry_rest_proc, "Chọn File Cần Xử Lý"), width=10).pack(side="right")
+    # 2. Row cấu hình cột + ECMS template chooser (side-by-side)
+    cols_container = tk.Frame(frame_main)
+    cols_container.pack(padx=10, fill="x", pady=5)
 
-    frame_rest_2 = tk.Frame(frame_restore_main)
-    frame_rest_2.pack(pady=5, padx=15, fill="x")
-    tk.Label(frame_rest_2, text="2. File Gốc (Lấy vị trí chuẩn):", width=25, anchor="w", font=("Arial", 10, "bold")).pack(side="left")
-    entry_rest_orig = tk.Entry(frame_rest_2, font=("Arial", 10))
-    entry_rest_orig.pack(side="left", fill="x", expand=True, padx=5)
-    tk.Button(frame_rest_2, text="Chọn File...", command=lambda: browse_file(entry_rest_orig, "Chọn File Gốc"), width=10).pack(side="right")
+    frame_cols = tk.LabelFrame(cols_container, text="Nhập các vị trí cột cần lấy dữ liệu trong file Excel", font=("Arial", 9, "italic"))
+    frame_cols.pack(side="left", fill="x", expand=True)
+    entry_cols = []
 
-    frame_rest_3 = tk.Frame(frame_restore_main)
-    frame_rest_3.pack(pady=5, padx=15, fill="x")
-    tk.Label(frame_rest_3, text="3. Lưu File Mới Tại:", width=25, anchor="w", font=("Arial", 10, "bold")).pack(side="left")
-    entry_rest_out = tk.Entry(frame_rest_3, font=("Arial", 10))
-    entry_rest_out.pack(side="left", fill="x", expand=True, padx=5)
-    tk.Button(frame_rest_3, text="Lưu Ở...", command=lambda: browse_file(entry_rest_out, "Lưu File Khôi Phục", True), width=10).pack(side="right")
-    tk.Button(frame_restore_main, text="Bắt Đầu Khôi Phục", command=restore_order_and_export, bg="#27ae60", fg="white", font=("Arial", 11, "bold"), padx=10).pack(pady=15)
-    # Bật Tab Sắp Xếp làm mặc định khi mở app
-    show_sorter()
+    for i, col in enumerate(col_names):
+        frame_col = tk.Frame(frame_cols)
+        frame_col.pack(side="left", padx=5, pady=5)
+        tk.Label(frame_col, text=col, font=("Arial", 9)).pack()
+        ent = tk.Entry(frame_col, width=5, justify="center")
+        ent.insert(0, default_cols[i])
+        ent.pack()
+        entry_cols.append(ent)
+
+    # -- Right side: ECMS subfolder chooser --
+    frame_template = tk.LabelFrame(cols_container, text="ECMS template (Chọn khu vực)", font=("Arial", 9, "italic"))
+    frame_template.pack(side="left", padx=(10,0), fill="y")
+
+    # Combobox / list of subfolders under ECMS_ROOT_DIR
+    subfolders_var = tk.StringVar()
+    combo_subfolders = ttk.Combobox(frame_template, textvariable=subfolders_var, state="readonly", width=30)
+
+    def list_ecms_subfolders():
+        items = []
+        try:
+            if os.path.exists(ECMS_ROOT_DIR):
+                for name in sorted(os.listdir(ECMS_ROOT_DIR)):
+                    p = os.path.join(ECMS_ROOT_DIR, name)
+                    if os.path.isdir(p) and not name.startswith('.'):
+                        items.append(name)
+        except Exception:
+            pass
+        return items
+
+    def refresh_subfolders():
+        items = list_ecms_subfolders()
+        combo_subfolders['values'] = items
+        if items:
+            combo_subfolders.current(0)
+            on_subfolder_selected(None)
+
+    # selected template path discovered automatically for chosen subfolder
+    selected_template_path = None
+
+    def find_template_in_subfolder(subname):
+        # search files inside ECMS_ROOT_DIR/subname for candidate templates
+        try:
+            folder = os.path.join(ECMS_ROOT_DIR, subname)
+            for f in sorted(os.listdir(folder)):
+                if f.startswith('.'):
+                    continue
+                name_lower = f.lower()
+                ext = os.path.splitext(f)[1].lower()
+                if ext == '.txt' or 'report' in name_lower or 'report_form' in name_lower or ext == '':
+                    return os.path.join(folder, f)
+        except Exception:
+            pass
+        return None
+
+    def on_subfolder_selected(event):
+        nonlocal selected_template_path
+        sub = subfolders_var.get()
+        if not sub:
+            selected_template_path = None
+            lbl_template_selected.config(text='(No template)')
+            return
+        tpl = find_template_in_subfolder(sub)
+        if tpl:
+            selected_template_path = tpl
+            lbl_template_selected.config(text=os.path.basename(tpl))
+        else:
+            selected_template_path = None
+            lbl_template_selected.config(text='(No template found)')
+
+    combo_subfolders.pack(padx=5, pady=6)
+    combo_subfolders.bind("<<ComboboxSelected>>", on_subfolder_selected)
+
+    btn_refresh_folders = tk.Button(frame_template, text="Refresh", command=refresh_subfolders)
+    btn_refresh_folders.pack(padx=5, pady=(0,6))
+
+    lbl_template_selected = tk.Label(frame_template, text="(No template)", font=("Arial", 9))
+    lbl_template_selected.pack(padx=5, pady=(0,6))
+
+    # populate initially
+    refresh_subfolders()
+
+    # 3. Khu vực hiển thị Accordion
+    frame_accordion = tk.Frame(frame_main)
+    frame_accordion.pack(fill="both", expand=True, pady=5)
+
+    # Khung chứa High
+    frame_high = tk.Frame(frame_accordion)
+    frame_high.pack(fill="x")
+    btn_high = tk.Button(frame_high, text="(v) High alarm - 0 alarms", anchor="w", font=("Arial", 10, "bold"), relief="solid", bd=1)
+    btn_high.pack(fill="x", padx=10, pady=2)
+    tree_high = ttk.Treeview(frame_high, height=7)
+    setup_treeview(tree_high)
+
+    # Khung chứa Medium
+    frame_med = tk.Frame(frame_accordion)
+    frame_med.pack(fill="x")
+    btn_med = tk.Button(frame_med, text="(v) Medium - 0 alarms", anchor="w", font=("Arial", 10, "bold"), relief="solid", bd=1)
+    btn_med.pack(fill="x", padx=10, pady=2)
+    tree_med = ttk.Treeview(frame_med, height=7)
+    setup_treeview(tree_med)
+
+    # Khung chứa Low
+    frame_low = tk.Frame(frame_accordion)
+    frame_low.pack(fill="x")
+    btn_low = tk.Button(frame_low, text="(v) Low - 0 alarms", anchor="w", font=("Arial", 10, "bold"), relief="solid", bd=1)
+    btn_low.pack(fill="x", padx=10, pady=2)
+    tree_low = ttk.Treeview(frame_low, height=7)
+    setup_treeview(tree_low)
+
+    tk.Label(frame_main, text="*Double-click vào ô để nhập liệu. Nhấn Enter để lưu.", fg="red", font=("Arial", 9, "italic")).pack()
+
+    # 4. Row Ghi file
+    frame_bot = tk.Frame(frame_main)
+    frame_bot.pack(pady=10, fill="x")
+    # Buttons: Write and Report
+    btn_row = tk.Frame(frame_bot)
+    btn_row.pack()
+    tk.Button(btn_row, text="Write", bg="#e74c3c", fg="white", font=("Arial", 11, "bold"), width=15, command=write_excel).pack(side="left", padx=6)
+    # Report button will create a filled report from template in ECMS folder and show it in the main output_text
+    def generate_report():
+        try:
+            # Collect data from trees
+            def collect(tree):
+                rows = []
+                for child in tree.get_children():
+                    vals = tree.item(child)['values']
+                    # vals: [row_idx, Point, KPI Target, Actual, Difference, Lvl Alarm, Status, Assigned, Reason]
+                    rows.append(vals)
+                return rows
+
+            high_rows = collect(tree_high)
+            med_rows = collect(tree_med)
+            low_rows = collect(tree_low)
+
+            total = len(high_rows) + len(med_rows) + len(low_rows)
+
+            def build_description(rows, category=None):
+                # Group devices by reason (so devices sharing same reason are combined)
+                # Default empty reason => 'theo dõi thêm'
+                default_reason = "theo dõi thêm"
+                reason_map = {}
+                for vals in rows:
+                    try:
+                        device = str(vals[1]).strip()
+                        reason = (str(vals[8]).strip() if len(vals) > 8 and vals[8] is not None else "")
+                    except Exception:
+                        continue
+                    if not device:
+                        continue
+                    if not reason:
+                        reason = default_reason
+                    # group
+                    reason_map.setdefault(reason, []).append(device)
+
+                # If category is low: do not list devices, only return a summary count
+                if category and category.lower().startswith('l'):
+                    total = len(rows)
+                    return f"{total} tủ theo dõi thêm" if total > 0 else "None"
+
+                lines = []
+                # Sort reasons so default reason goes last
+                sorted_reasons = sorted(reason_map.keys(), key=lambda r: (r == default_reason, r))
+                for reason in sorted_reasons:
+                    devices = sorted(set(reason_map[reason]))
+                    devices_str = ", ".join(devices)
+                    # prefix arrow and show devices then arrow to reason
+                    lines.append(f"➔ {devices_str} -> {reason}")
+
+                # For High and Medium do NOT append the compact summary line
+                return "\n".join(lines) if lines else "None"
+
+            high_desc = build_description(high_rows, category='high')
+            med_desc = build_description(med_rows, category='medium')
+            low_desc = build_description(low_rows, category='low')
+
+            # Use the template selected via the ECMS subfolder combobox if available.
+            # Do NOT prompt the user with a file dialog. If no selection, auto-find one under ECMS root.
+            try:
+                template_path = selected_template_path if selected_template_path else None
+
+                if not template_path:
+                    # auto-find across ECMS root
+                    template_path = None
+                    for root_dir, dirs, files in os.walk(ECMS_ROOT_DIR):
+                        for f in files:
+                            if f.startswith('.'):
+                                continue
+                            name_lower = f.lower()
+                            ext = os.path.splitext(f)[1].lower()
+                            if ext == '.txt' or 'report' in name_lower or 'report_form' in name_lower or ext == '':
+                                template_path = os.path.join(root_dir, f)
+                                break
+                        if template_path:
+                            break
+                    if not template_path:
+                        messagebox.showwarning("Không tìm thấy template", "Không tìm thấy file mẫu trong thư mục ECMS.")
+                        return
+            except Exception:
+                messagebox.showwarning("Không tìm thấy template", "Không tìm thấy file mẫu trong thư mục ECMS.")
+                return
+
+            with open(template_path, 'r', encoding='utf-8', errors='replace') as tf:
+                content = tf.read()
+
+            # Prepare replacements
+            today = datetime.datetime.now().strftime("%d/%m/%Y")
+            now_time = datetime.datetime.now().strftime("%H:%M:%S %d/%m/%Y")
+            previous = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%d/%m/%Y")
+
+            replacements = {
+                '[today]': today,
+                '[time]': now_time,
+                '[previous day]': previous,
+                '[total]': str(total),
+                '[number of high-level alarms]': str(len(high_rows)),
+                '[number of medium-level alarms]': str(len(med_rows)),
+                '[number of low-level alarms]': str(len(low_rows)),
+                '[high-level alarms description]': high_desc,
+                '[medium-level alarms description]': med_desc,
+                '[low-level alarms description]': low_desc
+            }
+
+            for k, v in replacements.items():
+                content = content.replace(k, v)
+
+            # Show report directly in main output box (do not save to disk)
+            try:
+                safe_content = content.encode('utf-8', errors='replace').decode('utf-8')
+                output_text.config(state='normal')
+                output_text.delete('1.0', tk.END)
+                output_text.insert(tk.END, safe_content)
+                output_text.config(state='disabled')
+                messagebox.showinfo("Report", "Report generated and displayed in the main textbox.")
+            except Exception:
+                messagebox.showerror("Lỗi", "Không thể hiển thị báo cáo trong textbox.")
+        except Exception as e:
+            messagebox.showerror("Lỗi Report", str(e))
+
+    tk.Button(btn_row, text="Report", bg="#3498db", fg="white", font=("Arial", 11, "bold"), width=15, command=generate_report).pack(side="left", padx=6)
+    tk.Label(frame_bot, text="Ghi đè trực tiếp vào file Excel hiện tại", fg="gray", font=("Arial", 8, "italic")).pack()
 
 # == Cửa sổ hình ảnh ==
 def create_new_window_image_daviteq(title):
