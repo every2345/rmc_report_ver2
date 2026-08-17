@@ -75,7 +75,7 @@ MAXVALUIMG_DIR = os.path.join(IMAGE_ROOT_DIR, "MAXVALU")
 # ECMS
 # ==========================================================
 ECMS_ROOT_DIR = os.path.join(APP_ROOT, "ECMS")
-ECMS_DIR = os.path.join(ECMS_ROOT_DIR, "ECMS")
+ECMS_DIR = os.path.join(ECMS_ROOT_DIR)
 
 # AEON GMS IMG ARCHIVE
 AEONGMS_IMAGE_LAYOUT_ARCHIVE_DIR = os.path.join(AEONGMSIMG_DIR, "LAYOUT")
@@ -2967,8 +2967,8 @@ def create_new_window_ecms():
         """Hàm quản lý việc Mở 1 bảng và Đóng các bảng còn lại"""
         sections = [
             (tree_high, btn_high, "High alarm"),
-            (tree_med, btn_med, "Medium"),
-            (tree_low, btn_low, "Low")
+            (tree_med, btn_med, "Medium alarm"),
+            (tree_low, btn_low, "Low alarm")
         ]
     
         is_active_open = active_tree.winfo_ismapped()
@@ -3087,8 +3087,24 @@ def create_new_window_ecms():
     tk.Label(frame_top, text="Dán link local Excel:", font=("Arial", 10, "bold")).pack(side="left")
     entry_read_in = tk.Entry(frame_top, font=("Arial", 10))
     entry_read_in.pack(side="left", fill="x", expand=True, padx=5)
-    tk.Button(frame_top, text="Chọn...", command=lambda: browse_file(entry_read_in, "Chọn Excel")).pack(side="left")
-    tk.Button(frame_top, text="Read", bg="#3498db", fg="white", font=("Arial", 10, "bold"), width=10, command=read_excel).pack(side="left", padx=5)
+    # Single button: choose file then automatically read
+    def choose_and_read():
+        filepath = filedialog.askopenfilename(title="Chọn Excel", filetypes=[("Excel files", "*.xlsx *.xls")])
+        if filepath:
+            entry_read_in.delete(0, tk.END)
+            entry_read_in.insert(0, filepath)
+            # schedule read after UI finishes building (avoid accessing tree_* before created)
+            try:
+                # use entry_read_in.after to delay execution so UI widgets (tree_*) exist
+                entry_read_in.after(200, read_excel)
+            except Exception:
+                # fallback: call directly
+                try:
+                    read_excel()
+                except Exception:
+                    pass
+
+    tk.Button(frame_top, text="Chọn và Read", bg="#3498db", fg="white", font=("Arial", 10, "bold"), width=14, command=choose_and_read).pack(side="left", padx=5)
 
     # 2. Row cấu hình cột + ECMS template chooser (side-by-side)
     cols_container = tk.Frame(frame_main)
@@ -3157,24 +3173,17 @@ def create_new_window_ecms():
         sub = subfolders_var.get()
         if not sub:
             selected_template_path = None
-            lbl_template_selected.config(text='(No template)')
             return
         tpl = find_template_in_subfolder(sub)
         if tpl:
             selected_template_path = tpl
-            lbl_template_selected.config(text=os.path.basename(tpl))
+            print(f"[ECMS] Selected template: {selected_template_path}")
         else:
             selected_template_path = None
-            lbl_template_selected.config(text='(No template found)')
+            print(f"[ECMS] No template found in subfolder {sub}")
 
     combo_subfolders.pack(padx=5, pady=6)
     combo_subfolders.bind("<<ComboboxSelected>>", on_subfolder_selected)
-
-    btn_refresh_folders = tk.Button(frame_template, text="Refresh", command=refresh_subfolders)
-    btn_refresh_folders.pack(padx=5, pady=(0,6))
-
-    lbl_template_selected = tk.Label(frame_template, text="(No template)", font=("Arial", 9))
-    lbl_template_selected.pack(padx=5, pady=(0,6))
 
     # populate initially
     refresh_subfolders()
@@ -3978,7 +3987,7 @@ def create_data_interaction_window(root, title="Cửa sổ tương tác dữ li�
     # =====================================================
     # DANH SÁCH THƯ MỤC HỆ THỐNG (Giả định biến đã được khai báo trước)
     # =====================================================
-    TARGET_FOLDERS = [AEONGMS_DIR, AEONMAXVALU_DIR, REPORT_FORM_DIR]
+    TARGET_FOLDERS = [AEONGMS_DIR, AEONMAXVALU_DIR, REPORT_FORM_DIR, ECMS_DIR]
 
     # =====================================================
     # GIAO DIỆN CHÍNH CỦA CỬA SỔ
@@ -4916,3 +4925,4 @@ show_startup_window()
 # ==== CHẠY ỨNG DỤNG ====
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
+
