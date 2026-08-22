@@ -3246,8 +3246,12 @@ def create_new_window_ecms():
             def build_description(rows, category=None):
                 # Group devices by reason (so devices sharing same reason are combined)
                 # Default empty reason => 'theo dõi thêm'
+                # Group devices by reason. Default empty reason => 'theo dõi thêm'
                 default_reason = "theo dõi thêm"
                 reason_map = {}
+                reason_map = {}          # only explicit reasons
+                default_devices = []    # devices with default (empty) reason
+
                 for vals in rows:
                     try:
                         device = str(vals[1]).strip()
@@ -3259,23 +3263,53 @@ def create_new_window_ecms():
                     if not reason:
                         reason = default_reason
                     # group
-                    reason_map.setdefault(reason, []).append(device)
+                    # treat empty or textual 'theo dõi thêm' (variants) as default tracking reason
+                    rnorm = re.sub(r"\s+", " ", reason.lower()).strip()
+                    is_default = (rnorm == "" or (
+                        ("theo" in rnorm) and ("dõi" in rnorm or "doi" in rnorm)
+                    ))
+                    if is_default:
+                        default_devices.append(device)
+                    else:
+                        reason_map.setdefault(reason, []).append(device)
 
                 # If category is low: do not list devices, only return a summary count
                 if category and category.lower().startswith('l'):
                     total = len(rows)
                     return f"{total} tủ theo dõi thêm" if total > 0 else "None"
+                lines = []
+
+                # For High/Medium: list devices grouped by reason including default reason as a group
+                if not (category and category.lower().startswith('l')):
+                    # merge default devices under default_reason if any
+                    if default_devices:
+                        reason_map.setdefault(default_reason, []).extend(default_devices)
 
                 lines = []
                 # Sort reasons so default reason goes last
-                sorted_reasons = sorted(reason_map.keys(), key=lambda r: (r == default_reason, r))
+                    # Sort reasons so default_reason goes last
+                    sorted_reasons = sorted(reason_map.keys(), key=lambda r: (r == default_reason, r))
+                    for reason in sorted_reasons:
+                        devices = sorted(set(reason_map[reason]))
+                        devices_str = ", ".join(devices)
+                    # prefix arrow and show devices then arrow to reason
+                        lines.append(f"➔ {devices_str} -> {reason}")
+
+                    return "\n".join(lines) if lines else "None"
+
+                # For Low category: list explicit-reason devices as separate lines, then append a summary for default devices
+                # First list explicit reasons
+                sorted_reasons = sorted(reason_map.keys())
                 for reason in sorted_reasons:
                     devices = sorted(set(reason_map[reason]))
                     devices_str = ", ".join(devices)
-                    # prefix arrow and show devices then arrow to reason
                     lines.append(f"➔ {devices_str} -> {reason}")
 
                 # For High and Medium do NOT append the compact summary line
+                # Then append summary for default devices (exclude those already listed)
+                if default_devices:
+                    lines.append(f"{len(default_devices)} tủ theo dõi thêm")
+
                 return "\n".join(lines) if lines else "None"
 
             high_desc = build_description(high_rows, category='high')
@@ -4925,4 +4959,3 @@ show_startup_window()
 # ==== CHẠY ỨNG DỤNG ====
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
-
