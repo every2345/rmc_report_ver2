@@ -99,6 +99,11 @@ DOCUMENTARY_ARCHIVE_DIR = os.path.join(APP_ROOT,"DOCUMENTARY")
 # ==========================================================
 METADATA_DIR = os.path.join(APP_ROOT,"METADATA")
 # ==========================================================
+# TICKET
+# ==========================================================
+TICKET_DIR = os.path.join(APP_ROOT, "Ticket")
+TICKET_ARCHIVE_PATH = os.path.join(TICKET_DIR, "Ticket Archive.xlsx")
+# ==========================================================
 # TẠO THƯ MỤC NẾU CHƯA TỒN TẠI
 # ==========================================================
 folders = [
@@ -128,10 +133,31 @@ folders = [
     MAXVALU_IMAGE_SEC_ARCHIVE_DIR,
 
     DOCUMENTARY_ARCHIVE_DIR,
-    METADATA_DIR
+    METADATA_DIR,
+    TICKET_DIR
 ]
 for folder in folders:
     os.makedirs(folder, exist_ok=True)
+
+
+def initialize_ticket_archive():
+    """Create the ticket archive workbook on first startup."""
+    if os.path.exists(TICKET_ARCHIVE_PATH):
+        return
+
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Tickets"
+    worksheet.append([
+        "Site name", "Week", "Date", "PIC", "System", "Reason",
+        "Alarm LV", "Type", "Status", "Processing", "Start time", "End time"
+    ])
+    worksheet.freeze_panes = "A2"
+    worksheet.auto_filter.ref = worksheet.dimensions
+    workbook.save(TICKET_ARCHIVE_PATH)
+
+
+initialize_ticket_archive()
 
 print("APP_ROOT =", APP_ROOT)
 # ==========================================================
@@ -3368,6 +3394,269 @@ def create_new_window_ecms():
     tk.Button(btn_row, text="Report", bg="#3498db", fg="white", font=("Arial", 11, "bold"), width=15, command=generate_report).pack(side="left", padx=6)
     tk.Label(frame_bot, text="Ghi đè trực tiếp vào file Excel hiện tại", fg="gray", font=("Arial", 8, "italic")).pack()
 
+# == Cửa sổ xem ticket đã tạo ==
+def open_ticket_archive_window():
+    archive_window = tk.Toplevel(root)
+    archive_window.title("Xem phiếu đã tạo")
+    archive_window.geometry("1100x400")
+    archive_window.resizable(False, False)
+    archive_window.transient(root)
+
+    table_frame = tk.Frame(archive_window)
+    table_frame.pack(fill="both", expand=True, padx=10, pady=10)
+    table_frame.rowconfigure(0, weight=1)
+    table_frame.columnconfigure(0, weight=1)
+
+    data_columns = [
+        "Site name", "Week", "Date", "PIC", "System", "Reason",
+        "Alarm LV", "Type", "Status", "Processing", "Start time", "End time"
+    ]
+    columns = ["Tình trạng phiếu"] + data_columns
+    ticket_table = ttk.Treeview(table_frame, columns=columns, show="headings")
+    vertical_scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=ticket_table.yview)
+    horizontal_scrollbar = ttk.Scrollbar(table_frame, orient="horizontal", command=ticket_table.xview)
+    ticket_table.configure(
+        yscrollcommand=vertical_scrollbar.set,
+        xscrollcommand=horizontal_scrollbar.set
+    )
+
+    for column in columns:
+        ticket_table.heading(column, text=column)
+        ticket_table.column(
+            column, width=150 if column != "Tình trạng phiếu" else 150,
+            minwidth=110, anchor="w"
+        )
+
+    ticket_table.tag_configure(
+        "complete", background="#c6efce", foreground="#006100"
+    )
+    ticket_table.tag_configure(
+        "incomplete", background="#ffc7ce", foreground="#9c0006"
+    )
+
+    ticket_table.grid(row=0, column=0, sticky="nsew")
+    vertical_scrollbar.grid(row=0, column=1, sticky="ns")
+    horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
+
+    def load_tickets():
+        for item in ticket_table.get_children():
+            ticket_table.delete(item)
+        try:
+            workbook = openpyxl.load_workbook(TICKET_ARCHIVE_PATH, read_only=True, data_only=True)
+            worksheet = workbook.active
+            for excel_row, row in enumerate(worksheet.iter_rows(min_row=2, values_only=True), start=2):
+                if any(value not in (None, "") for value in row):
+                    row_values = [value or "" for value in row[:len(data_columns)]]
+                    is_complete = all(str(value).strip() for value in row_values)
+                    ticket_table.insert(
+                        "", "end", iid=str(excel_row),
+                        values=[
+                            "Đầy đủ" if is_complete else "Thiếu thông tin",
+                            *row_values
+                        ],
+                        tags=("complete" if is_complete else "incomplete",)
+                    )
+            workbook.close()
+        except Exception as error:
+            messagebox.showerror(
+                "Lỗi", f"Không thể đọc Ticket Archive.xlsx:\n{error}", parent=archive_window
+            )
+
+    def edit_cell(event):
+        row_id = ticket_table.identify_row(event.y)
+        column_id = ticket_table.identify_column(event.x)
+        if not row_id or not column_id:
+            return
+
+        column_index = int(column_id[1:]) - 1
+        if column_index == 0:
+            return
+        cell_box = ticket_table.bbox(row_id, column_id)
+        if not cell_box:
+            return
+
+        editor = tk.Entry(ticket_table)
+        editor.insert(0, ticket_table.item(row_id, "values")[column_index])
+        editor.select_range(0, tk.END)
+        editor.focus_set()
+        editor.place(x=cell_box[0], y=cell_box[1], width=cell_box[2], height=cell_box[3])
+
+        def save_cell(event=None):
+            new_value = editor.get()
+            values = list(ticket_table.item(row_id, "values"))
+            values[column_index] = new_value
+            ticket_table.item(row_id, values=values)
+            try:
+                workbook = openpyxl.load_workbook(TICKET_ARCHIVE_PATH)
+                worksheet = workbook.active
+                worksheet.cell(
+                    row=int(row_id), column=column_index
+                ).value = new_value
+                workbook.save(TICKET_ARCHIVE_PATH)
+                workbook.close()
+                values[column_index] = new_value
+                data_values = values[1:]
+                is_complete = all(str(value).strip() for value in data_values)
+                ticket_table.item(
+                    row_id,
+                    values=[
+                        "Đầy đủ" if is_complete else "Thiếu thông tin",
+                        *data_values
+                    ],
+                    tags=("complete" if is_complete else "incomplete",)
+                )
+            except Exception as error:
+                messagebox.showerror(
+                    "Lỗi", f"Không thể lưu thay đổi:\n{error}", parent=archive_window
+                )
+            editor.destroy()
+
+        editor.bind("<Return>", save_cell)
+        editor.bind("<FocusOut>", save_cell)
+        editor.bind("<Escape>", lambda event: editor.destroy())
+
+    ticket_table.bind("<Double-1>", edit_cell)
+
+    def clear_all_tickets():
+        if not messagebox.askyesno(
+            "Xác nhận xóa",
+            "Bạn có chắc muốn xóa tất cả phiếu hiện có không?",
+            parent=archive_window
+        ):
+            return
+        try:
+            workbook = openpyxl.load_workbook(TICKET_ARCHIVE_PATH)
+            worksheet = workbook.active
+            if worksheet.max_row > 1:
+                worksheet.delete_rows(2, worksheet.max_row - 1)
+            workbook.save(TICKET_ARCHIVE_PATH)
+            workbook.close()
+            load_tickets()
+            messagebox.showinfo(
+                "Xóa phiếu", "Đã xóa tất cả dữ liệu phiếu.", parent=archive_window
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Lỗi", f"Không thể xóa dữ liệu phiếu:\n{error}", parent=archive_window
+            )
+
+    def open_ticket_file():
+        try:
+            os.startfile(TICKET_ARCHIVE_PATH)
+        except Exception as error:
+            messagebox.showerror(
+                "Lỗi", f"Không thể mở file Ticket Archive.xlsx:\n{error}", parent=archive_window
+            )
+
+    button_frame = tk.Frame(archive_window)
+    button_frame.pack(fill="x", padx=10, pady=(0, 10))
+    tk.Button(
+        button_frame, text="Làm mới", command=load_tickets,
+        bg="#2196F3", fg="white", font=("Arial", 10, "bold"), width=14
+    ).pack(side="left")
+    tk.Button(
+        button_frame, text="Xóa tất cả phiếu", command=clear_all_tickets,
+        bg="#f44336", fg="white", font=("Arial", 10, "bold"), width=18
+    ).pack(side="left", padx=(8, 0))
+    tk.Button(
+        button_frame, text="Mở file lưu dữ liệu", command=open_ticket_file,
+        bg="#4CAF50", fg="white", font=("Arial", 10, "bold"), width=20
+    ).pack(side="left", padx=(8, 0))
+    tk.Label(
+        button_frame, text="Nhấp đúp vào ô để chỉnh sửa và lưu trực tiếp vào Excel.",
+        fg="gray"
+    ).pack(side="left", padx=12)
+    load_tickets()
+
+# == Cửa sổ tạo ticket ==
+def create_ticket_window():
+    ticket_window = tk.Toplevel(root)
+    ticket_window.title("Tạo phiếu")
+    ticket_window.geometry("1100x400")
+    ticket_window.resizable(False, False)
+    ticket_window.transient(root)
+
+    current_text = output_text.get("1.0", "end-1c")
+    site_match = re.search(r"khu vực\s+(.+?)(?:,|\.|$)", current_text, re.IGNORECASE)
+    system_match = re.search(r"Thiết bị\s+(?:gặp cảnh báo|bị cảnh báo)\s*:\s*(.+)", current_text, re.IGNORECASE)
+    site_default = site_match.group(1).strip() if site_match else CURRENT_SOURCE
+    system_default = system_match.group(1).splitlines()[0].strip() if system_match else ""
+    now = datetime.datetime.now()
+
+    form_frame = tk.LabelFrame(ticket_window, text="Thông tin phiếu", font=("Arial", 11, "bold"))
+    form_frame.pack(fill="x", padx=12, pady=10)
+
+    fields = {}
+    # The sixth item is the option list for comboboxes and None for entries.
+    # Keep the field definition as the single source of truth for both the
+    # controls and the values collected when a ticket is archived.
+    field_specs = [
+        ("Site name", "entry", site_default, 0, 0, None),
+        ("Site code", "entry", "", 0, 2, None),
+        ("Date", "entry", now.strftime("%d/%m/%Y"), 1, 0, None),
+        ("Week", "combo", "Week1", 1, 2, ["Week1", "Week2", "Week3", "Week4", "Week5"]),
+        ("System", "entry", system_default, 2, 0, None),
+        ("PIC", "entry", "", 2, 2, None),
+        ("Reason", "entry", "", 3, 0, None),
+        ("Alarm LV", "combo", "Medium", 4, 0, ["Low", "Medium", "High"]),
+        ("Type", "combo", "None", 4, 2, ["Operation", "Device", "Maintenance & Cons", "Others", "None"]),
+        ("Status", "combo", "Not yet", 5, 0, ["Not yet", "Done"]),
+        ("Processing", "combo", "Đang xử lý", 5, 2, ["Đang xử lý", "Đã xử lý"]),
+        ("Start time", "entry", now.strftime("%H:%M"), 6, 0, None),
+        ("End time", "entry", "", 6, 2, None),
+    ]
+
+    for label_text, widget_type, default, row, column, values in field_specs:
+        label = tk.Label(form_frame, text=f"{label_text}:", font=("Arial", 10, "bold"))
+        label.grid(row=row, column=column, sticky="w", padx=(8, 5), pady=5)
+        if widget_type == "combo":
+            widget = ttk.Combobox(
+                form_frame, values=values, state="readonly", width=24
+            )
+            widget.set(default)
+        else:
+            widget = tk.Entry(form_frame, width=27)
+            widget.insert(0, default)
+        widget.grid(row=row, column=column + 1, sticky="ew", padx=(0, 12), pady=5)
+        fields[label_text] = widget
+
+    form_frame.columnconfigure(1, weight=1)
+    form_frame.columnconfigure(3, weight=1)
+
+    def get_value(field_name):
+        return fields[field_name].get().strip()
+
+    def save_ticket():
+        archive_field_names = [
+            "Site name", "Week", "Date", "PIC", "System", "Reason",
+            "Alarm LV", "Type", "Status", "Processing", "Start time", "End time"
+        ]
+        values = [
+            get_value("Site code") if name == "Site name" else get_value(name)
+            for name in archive_field_names
+        ]
+        try:
+            workbook = openpyxl.load_workbook(TICKET_ARCHIVE_PATH)
+            worksheet = workbook.active
+            worksheet.append(values)
+            workbook.save(TICKET_ARCHIVE_PATH)
+            workbook.close()
+            messagebox.showinfo("Tạo phiếu", "Đã lưu phiếu vào Ticket Archive.xlsx.", parent=ticket_window)
+        except Exception as error:
+            messagebox.showerror("Lỗi", f"Không thể lưu phiếu:\n{error}", parent=ticket_window)
+
+    action_frame = tk.Frame(ticket_window)
+    action_frame.pack(fill="x", padx=12, pady=(0, 8))
+    tk.Button(
+        action_frame, text="Tạo phiếu", command=save_ticket,
+        bg="#4CAF50", fg="white", font=("Arial", 11, "bold"), width=16
+    ).pack(side="left", padx=5)
+    tk.Button(
+        action_frame, text="Xem phiếu đã tạo", command=open_ticket_archive_window,
+        bg="#2196F3", fg="white", font=("Arial", 11, "bold"), width=18
+    ).pack(side="left", padx=5)
+
+
 # == Cửa sổ hình ảnh ==
 def create_new_window_image_daviteq(title):
     # =====================================================
@@ -3550,7 +3839,7 @@ def create_new_window_image_daviteq(title):
     # =====================================================
     new_window = tk.Toplevel()
     new_window.title(title)
-    new_window.geometry("1200x650")
+    new_window.geometry("1200x500")
     new_window.configure(bg="white")
 
     left_frame = tk.Frame(new_window,width=170,bg="#f0f0f0")
@@ -4678,6 +4967,10 @@ copy_button.pack(side="left", padx=(0, 5))
 clear_button = tk.Button(left_controls, text="Clear", font=("Arial", 10, "bold"), bg="#f44336", fg="white",
                          command=clear_text_output, width=15)
 clear_button.pack(side="left")
+
+fill_button = tk.Button(left_controls, text="Fill", font=("Arial", 10, "bold"), bg="#c000a0", fg="white",
+                        command=create_ticket_window, width=15)
+fill_button.pack(side="left", padx=(5, 0))
 
 # Catch (ngoài cùng bên phải)
 catch_button = tk.Button(right_controls, text="Catch", font=("Arial", 10, "bold"), bg="#029B82", fg="white",
