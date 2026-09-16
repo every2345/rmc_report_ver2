@@ -103,6 +103,7 @@ METADATA_DIR = os.path.join(APP_ROOT,"METADATA")
 # ==========================================================
 TICKET_DIR = os.path.join(APP_ROOT, "Ticket")
 TICKET_ARCHIVE_PATH = os.path.join(TICKET_DIR, "Ticket Archive.xlsx")
+MACRO_ARCHIVE_PATH = os.path.join(TICKET_DIR, "Macro.xlsx")
 # ==========================================================
 # TẠO THƯ MỤC NẾU CHƯA TỒN TẠI
 # ==========================================================
@@ -139,7 +140,6 @@ folders = [
 for folder in folders:
     os.makedirs(folder, exist_ok=True)
 
-
 def initialize_ticket_archive():
     """Create the ticket archive workbook on first startup."""
     if os.path.exists(TICKET_ARCHIVE_PATH):
@@ -158,6 +158,19 @@ def initialize_ticket_archive():
 
 
 initialize_ticket_archive()
+def initialize_macro_archive():
+    """Create the site-name to site-code mapping workbook on first startup."""
+    if os.path.exists(MACRO_ARCHIVE_PATH):
+        return
+
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Macro"
+    worksheet.append(["Site name", "Site code"])
+    worksheet.freeze_panes = "A2"
+    worksheet.auto_filter.ref = worksheet.dimensions
+    workbook.save(MACRO_ARCHIVE_PATH)
+initialize_macro_archive()
 
 print("APP_ROOT =", APP_ROOT)
 # ==========================================================
@@ -268,17 +281,12 @@ def authenticate():
 # ==== Đăng nhập Azure ====
 try:
     result = authenticate()
-
     if "access_token" not in result:
         raise Exception("Đăng nhập thất bại")
-
     access_token = result["access_token"]
 except Exception as e:
-
     messagebox.showerror("Lỗi", str(e))
-
     root.destroy()
-
     exit()
 
 # ==== FILE ĐÁNH DẤU CHẠY LẦN ĐẦU =========================================
@@ -3568,6 +3576,37 @@ def open_ticket_archive_window():
     ).pack(side="left", padx=12)
     load_tickets()
 
+
+def open_macro_archive(parent=None):
+    """Open the workbook used to map full site names to short site codes."""
+    try:
+        os.startfile(MACRO_ARCHIVE_PATH)
+    except Exception as error:
+        messagebox.showerror(
+            "Lỗi", f"Không thể mở file Macro.xlsx:\n{error}", parent=parent
+        )
+
+
+def lookup_site_code(site_name):
+    """Return the configured site code for a site name, if one exists."""
+    if not site_name:
+        return ""
+    try:
+        workbook = openpyxl.load_workbook(
+            MACRO_ARCHIVE_PATH, read_only=True, data_only=True
+        )
+        worksheet = workbook.active
+        wanted_name = site_name.strip().casefold()
+        for name, code in worksheet.iter_rows(min_row=2, max_col=2, values_only=True):
+            if name and str(name).strip().casefold() == wanted_name:
+                workbook.close()
+                return str(code).strip() if code is not None else ""
+        workbook.close()
+    except Exception:
+        return ""
+    return ""
+
+
 # == Cửa sổ tạo ticket ==
 def create_ticket_window():
     ticket_window = tk.Toplevel(root)
@@ -3578,7 +3617,11 @@ def create_ticket_window():
 
     current_text = output_text.get("1.0", "end-1c")
     site_match = re.search(r"khu vực\s+(.+?)(?:,|\.|$)", current_text, re.IGNORECASE)
-    system_match = re.search(r"Thiết bị\s+(?:gặp cảnh báo|bị cảnh báo)\s*:\s*(.+)", current_text, re.IGNORECASE)
+    system_match = re.search(
+        r"(?:Tên thiết bị|Thiết bị\s+(?:gặp cảnh báo|bị cảnh báo))\s*:\s*(.+)",
+        current_text,
+        re.IGNORECASE
+    )
     site_default = site_match.group(1).strip() if site_match else CURRENT_SOURCE
     system_default = system_match.group(1).splitlines()[0].strip() if system_match else ""
     now = datetime.datetime.now()
@@ -3622,11 +3665,32 @@ def create_ticket_window():
 
     form_frame.columnconfigure(1, weight=1)
     form_frame.columnconfigure(3, weight=1)
+    form_frame.columnconfigure(4, weight=0)
+
+    tk.Button(
+        form_frame, text="MACRO", command=lambda: open_macro_archive(ticket_window),
+        bg="#f01818", fg="white", font=("Arial", 10, "bold"), width=9
+    ).grid(row=0, column=4, padx=(0, 8), pady=5)
 
     def get_value(field_name):
         return fields[field_name].get().strip()
 
+    def update_site_code(*_event):
+        """Populate Site code from Macro.xlsx without removing a manual fallback."""
+        configured_site_code = lookup_site_code(get_value("Site name"))
+        if configured_site_code:
+            fields["Site code"].delete(0, tk.END)
+            fields["Site code"].insert(0, configured_site_code)
+
+    # Keep the code synchronized while the user types or selects a different
+    # site, and populate it immediately when the ticket form is opened.
+    fields["Site name"].bind("<KeyRelease>", update_site_code)
+    fields["Site name"].bind("<FocusOut>", update_site_code)
+    update_site_code()
+
     def save_ticket():
+        update_site_code()
+
         archive_field_names = [
             "Site name", "Week", "Date", "PIC", "System", "Reason",
             "Alarm LV", "Type", "Status", "Processing", "Start time", "End time"
@@ -3655,7 +3719,6 @@ def create_ticket_window():
         action_frame, text="Xem phiếu đã tạo", command=open_ticket_archive_window,
         bg="#2196F3", fg="white", font=("Arial", 11, "bold"), width=18
     ).pack(side="left", padx=5)
-
 
 # == Cửa sổ hình ảnh ==
 def create_new_window_image_daviteq(title):
@@ -3833,7 +3896,6 @@ def create_new_window_image_daviteq(title):
                         break
             except Exception:
                 pass
-
     # =====================================================
     # WINDOW
     # =====================================================
