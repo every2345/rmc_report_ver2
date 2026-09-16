@@ -159,14 +159,19 @@ def initialize_ticket_archive():
 
 initialize_ticket_archive()
 def initialize_macro_archive():
-    """Create the site-name to site-code mapping workbook on first startup."""
+    """Create or upgrade the site and system mapping workbook."""
     if os.path.exists(MACRO_ARCHIVE_PATH):
-        return
-
-    workbook = openpyxl.Workbook()
-    worksheet = workbook.active
-    worksheet.title = "Macro"
-    worksheet.append(["Site name", "Site code"])
+        workbook = openpyxl.load_workbook(MACRO_ARCHIVE_PATH)
+        worksheet = workbook.active
+        worksheet.cell(row=1, column=1).value = "Site name"
+        worksheet.cell(row=1, column=2).value = "Site code"
+        worksheet.cell(row=1, column=3).value = "System name"
+        worksheet.cell(row=1, column=4).value = "System summary"
+    else:
+        workbook = openpyxl.Workbook()
+        worksheet = workbook.active
+        worksheet.title = "Macro"
+        worksheet.append(["Site name", "Site code", "System name", "System summary"])
     worksheet.freeze_panes = "A2"
     worksheet.auto_filter.ref = worksheet.dimensions
     workbook.save(MACRO_ARCHIVE_PATH)
@@ -3576,7 +3581,6 @@ def open_ticket_archive_window():
     ).pack(side="left", padx=12)
     load_tickets()
 
-
 def open_macro_archive(parent=None):
     """Open the workbook used to map full site names to short site codes."""
     try:
@@ -3586,11 +3590,32 @@ def open_macro_archive(parent=None):
             "Lỗi", f"Không thể mở file Macro.xlsx:\n{error}", parent=parent
         )
 
-
 def lookup_site_code(site_name):
     """Return the configured site code for a site name, if one exists."""
     if not site_name:
         return ""
+
+
+def lookup_system_summary(system_name):
+    """Return the configured system summary, or keep the original system name."""
+    if not system_name:
+        return ""
+    try:
+        workbook = openpyxl.load_workbook(
+            MACRO_ARCHIVE_PATH, read_only=True, data_only=True
+        )
+        worksheet = workbook.active
+        wanted_name = system_name.strip().casefold()
+        for name, summary in worksheet.iter_rows(
+            min_row=2, min_col=3, max_col=4, values_only=True
+        ):
+            if name and str(name).strip().casefold() == wanted_name:
+                workbook.close()
+                return str(summary).strip() if summary is not None else ""
+        workbook.close()
+    except Exception:
+        return ""
+    return ""
     try:
         workbook = openpyxl.load_workbook(
             MACRO_ARCHIVE_PATH, read_only=True, data_only=True
@@ -3605,7 +3630,6 @@ def lookup_site_code(site_name):
     except Exception:
         return ""
     return ""
-
 
 # == Cửa sổ tạo ticket ==
 def create_ticket_window():
@@ -3624,6 +3648,9 @@ def create_ticket_window():
     )
     site_default = site_match.group(1).strip() if site_match else CURRENT_SOURCE
     system_default = system_match.group(1).splitlines()[0].strip() if system_match else ""
+    system_summary = lookup_system_summary(system_default)
+    if system_summary:
+        system_default = system_summary
     now = datetime.datetime.now()
 
     form_frame = tk.LabelFrame(ticket_window, text="Thông tin phiếu", font=("Arial", 11, "bold"))
