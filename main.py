@@ -1092,7 +1092,6 @@ def get_save_dir_from_path(folder_path):
             return local_dir
         except Exception:
             return ECMS_DIR
-
     return None
 
 # ==== AUTO SYNC FROM data_link.json =========================================================
@@ -3645,7 +3644,6 @@ def lookup_site_code(site_name):
             workbook.close()
     return ""
 
-
 def lookup_system_summary(system_name):
     """Return the configured system summary, or keep the original system name."""
     if not system_name:
@@ -3666,6 +3664,7 @@ def lookup_system_summary(system_name):
     except Exception:
         return ""
     return ""
+
 # == Cửa sổ tạo ticket ==
 def create_ticket_window():
     ticket_window = tk.Toplevel(root)
@@ -3699,14 +3698,14 @@ def create_ticket_window():
         ("Site name", "entry", site_default, 0, 0, None),
         ("Site code", "entry", "", 0, 2, None),
         ("Date", "entry", now.strftime("%d/%m/%Y"), 1, 0, None),
-        ("Week", "combo", "Week1", 1, 2, ["Week1", "Week2", "Week3", "Week4", "Week5"]),
+        ("Week", "combo", "Week 1", 1, 2, ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5"]),
         ("System", "entry", system_default, 2, 0, None),
         ("PIC", "entry", "", 2, 2, None),
         ("Reason", "entry", "", 3, 0, None),
         ("Alarm LV", "combo", "Medium", 4, 0, ["Low", "Medium", "High"]),
         ("Type", "combo", "None", 4, 2, ["Operation", "Device", "Maintenance & Cons", "Others", "None"]),
-        ("Status", "combo", "Not yet", 5, 0, ["Not yet", "Done"]),
-        ("Processing", "combo", "Đang xử lý", 5, 2, ["Đang xử lý", "Đã xử lý"]),
+        ("Status", "combo", "Done", 5, 0, ["Not yet", "Done"]),
+        ("Processing", "combo", "Đã xử lý", 5, 2, ["Đang xử lý", "Đã xử lý"]),
         ("Start time", "entry", now.strftime("%H:%M"), 6, 0, None),
         ("End time", "entry", "", 6, 2, None),
     ]
@@ -3736,6 +3735,28 @@ def create_ticket_window():
 
     def get_value(field_name):
         return fields[field_name].get().strip()
+
+    def update_week_from_date(*_event):
+        """Set the month week using Monday as the first day of each week."""
+        date_text = get_value("Date")
+        parsed_date = None
+        for date_format in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"):
+            try:
+                parsed_date = datetime.datetime.strptime(date_text, date_format)
+                break
+            except ValueError:
+                continue
+
+        if parsed_date is None:
+            return
+
+        first_day_of_month = parsed_date.replace(day=1)
+        week_number = ((parsed_date.day + first_day_of_month.weekday() - 1) // 7) + 1
+        fields["Week"].set(f"Week{week_number}")
+
+    fields["Date"].bind("<KeyRelease>", update_week_from_date)
+    fields["Date"].bind("<FocusOut>", update_week_from_date)
+    update_week_from_date()
 
     def update_site_code(*_event):
         """Populate Site code from Macro.xlsx without removing a manual fallback."""
