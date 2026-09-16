@@ -15,6 +15,7 @@ import time
 import threading
 from tkinter import ttk, messagebox
 import json
+import unicodedata
 import schedule
 from tkcalendar import DateEntry
 import pandas as pd
@@ -160,21 +161,41 @@ def initialize_ticket_archive():
 initialize_ticket_archive()
 def initialize_macro_archive():
     """Create or upgrade the site and system mapping workbook."""
-    if os.path.exists(MACRO_ARCHIVE_PATH):
-        workbook = openpyxl.load_workbook(MACRO_ARCHIVE_PATH)
-        worksheet = workbook.active
-        worksheet.cell(row=1, column=1).value = "Site name"
-        worksheet.cell(row=1, column=2).value = "Site code"
-        worksheet.cell(row=1, column=3).value = "System name"
-        worksheet.cell(row=1, column=4).value = "System summary"
-    else:
-        workbook = openpyxl.Workbook()
-        worksheet = workbook.active
-        worksheet.title = "Macro"
-        worksheet.append(["Site name", "Site code", "System name", "System summary"])
-    worksheet.freeze_panes = "A2"
-    worksheet.auto_filter.ref = worksheet.dimensions
-    workbook.save(MACRO_ARCHIVE_PATH)
+    workbook = None
+    changed = False
+    headers = ["Site name", "Site code", "System name", "System summary"]
+    try:
+        if os.path.exists(MACRO_ARCHIVE_PATH):
+            workbook = openpyxl.load_workbook(MACRO_ARCHIVE_PATH)
+            worksheet = (
+                workbook["Macro"] if "Macro" in workbook.sheetnames
+                else workbook.active
+            )
+            for column, header in enumerate(headers, start=1):
+                cell = worksheet.cell(row=1, column=column)
+                if cell.value != header:
+                    cell.value = header
+                    changed = True
+        else:
+            workbook = openpyxl.Workbook()
+            worksheet = workbook.active
+            worksheet.title = "Macro"
+            worksheet.append(headers)
+            changed = True
+
+        if worksheet.freeze_panes != "A2":
+            worksheet.freeze_panes = "A2"
+            changed = True
+        if changed:
+            worksheet.auto_filter.ref = worksheet.dimensions
+            workbook.save(MACRO_ARCHIVE_PATH)
+    except PermissionError:
+        # Macro.xlsx may be open in Excel or be read-only.  The application
+        # can still use its existing contents for lookups and manual fallback.
+        print(f"Macro archive is locked or read-only: {MACRO_ARCHIVE_PATH}")
+    finally:
+        if workbook is not None:
+            workbook.close()
 initialize_macro_archive()
 
 print("APP_ROOT =", APP_ROOT)
@@ -3595,6 +3616,35 @@ def lookup_site_code(site_name):
     if not site_name:
         return ""
 
+    def normalize(value):
+        """Normalize Excel/user text before comparing it."""
+        text = unicodedata.normalize("NFKC", str(value))
+        text = text.replace("\u00a0", " ").replace("\u200b", "")
+        return re.sub(r"\s+", " ", text).strip().casefold()
+
+    wanted_name = normalize(site_name)
+    workbook = None
+    try:
+        # Read cached cell values.  Site mappings are plain text, so formulas
+        # are not required here; read_only also avoids locking Macro.xlsx.
+        workbook = openpyxl.load_workbook(
+            MACRO_ARCHIVE_PATH, read_only=True, data_only=True
+        )
+        worksheet = workbook["Macro"] if "Macro" in workbook.sheetnames else workbook.active
+        for name, code in worksheet.iter_rows(
+            min_row=2, min_col=1, max_col=2, values_only=True
+        ):
+            if name is not None and normalize(name) == wanted_name:
+                return str(code).strip() if code is not None else ""
+    except (OSError, KeyError, ValueError):
+        # Keep the manual Site code field usable if the workbook is unavailable
+        # or is being edited by Excel.
+        return ""
+    finally:
+        if workbook is not None:
+            workbook.close()
+    return ""
+
 
 def lookup_system_summary(system_name):
     """Return the configured system summary, or keep the original system name."""
@@ -3616,21 +3666,6 @@ def lookup_system_summary(system_name):
     except Exception:
         return ""
     return ""
-    try:
-        workbook = openpyxl.load_workbook(
-            MACRO_ARCHIVE_PATH, read_only=True, data_only=True
-        )
-        worksheet = workbook.active
-        wanted_name = site_name.strip().casefold()
-        for name, code in worksheet.iter_rows(min_row=2, max_col=2, values_only=True):
-            if name and str(name).strip().casefold() == wanted_name:
-                workbook.close()
-                return str(code).strip() if code is not None else ""
-        workbook.close()
-    except Exception:
-        return ""
-    return ""
-
 # == Cửa sổ tạo ticket ==
 def create_ticket_window():
     ticket_window = tk.Toplevel(root)
