@@ -105,6 +105,10 @@ METADATA_DIR = os.path.join(APP_ROOT,"METADATA")
 TICKET_DIR = os.path.join(APP_ROOT, "Ticket")
 TICKET_ARCHIVE_PATH = os.path.join(TICKET_DIR, "Ticket Archive.xlsx")
 MACRO_ARCHIVE_PATH = os.path.join(TICKET_DIR, "Macro.xlsx")
+TICKET_ARCHIVE_COLUMNS = [
+    "Site name", "Week", "Date", "PIC", "System", "Reason",
+    "Alarm LV", "Type", "Status", "Processing", "Start time", "End time"
+]
 # ==========================================================
 # TẠO THƯ MỤC NẾU CHƯA TỒN TẠI
 # ==========================================================
@@ -197,6 +201,45 @@ def initialize_macro_archive():
         if workbook is not None:
             workbook.close()
 initialize_macro_archive()
+
+
+def load_ticket_archive_records():
+    """Load non-empty ticket rows with their Excel row numbers."""
+    workbook = openpyxl.load_workbook(TICKET_ARCHIVE_PATH, read_only=True, data_only=True)
+    try:
+        worksheet = workbook.active
+        records = []
+        for excel_row, row in enumerate(
+            worksheet.iter_rows(min_row=2, max_col=len(TICKET_ARCHIVE_COLUMNS), values_only=True),
+            start=2
+        ):
+            values = [value or "" for value in row]
+            if any(str(value).strip() for value in values):
+                records.append({
+                    "excel_row": excel_row,
+                    **dict(zip(TICKET_ARCHIVE_COLUMNS, values))
+                })
+        return records
+    finally:
+        workbook.close()
+
+
+def update_ticket_archive_record(excel_row, updates):
+    """Update selected ticket fields by Excel row number."""
+    workbook = openpyxl.load_workbook(TICKET_ARCHIVE_PATH)
+    try:
+        worksheet = workbook.active
+        column_numbers = {
+            name: index + 1 for index, name in enumerate(TICKET_ARCHIVE_COLUMNS)
+        }
+        for field_name, value in updates.items():
+            if field_name in column_numbers:
+                worksheet.cell(
+                    row=int(excel_row), column=column_numbers[field_name]
+                ).value = value
+        workbook.save(TICKET_ARCHIVE_PATH)
+    finally:
+        workbook.close()
 
 print("APP_ROOT =", APP_ROOT)
 # ==========================================================
@@ -2708,6 +2751,7 @@ def create_new_window_status(title, content=None):
     # =====================================================
     confirm_frame = tk.LabelFrame(new_window, text="Đã confirm chưa?", font=("Arial", 12, "bold"))
     confirm_frame.pack(padx=20, pady=10, fill="x")
+    selected_ticket = {"record": None}
 
     # =====================================================
     # FORM FRAME
@@ -2817,6 +2861,122 @@ def create_new_window_status(title, content=None):
         status_entry.config(state=state_readonly)
         desc_entry.config(state=state_normal)
 
+    def set_widget_value(widget, value):
+        previous_state = str(widget.cget("state"))
+        widget.config(state="normal")
+        if isinstance(widget, tk.Text):
+            widget.delete("1.0", tk.END)
+            widget.insert("1.0", value or "")
+        else:
+            widget.delete(0, tk.END)
+            widget.insert(0, value or "")
+        widget.config(state=previous_state)
+
+    def choose_ticket():
+        try:
+            records = load_ticket_archive_records()
+        except Exception as error:
+            messagebox.showerror("Lỗi", f"Không thể đọc Ticket Archive.xlsx:\n{error}", parent=new_window)
+            return
+        if not records:
+            messagebox.showinfo("Chọn phiếu", "Ticket Archive chưa có phiếu nào.", parent=new_window)
+            return
+
+        chooser = tk.Toplevel(new_window)
+        chooser.title("Chọn ticket")
+        chooser.geometry("1100x450")
+        chooser.transient(new_window)
+        chooser.grab_set()
+        tk.Label(chooser, text="Chọn phiếu cần đổ dữ liệu vào Status:", font=("Arial", 11, "bold")).pack(pady=8)
+
+        table_frame = tk.Frame(chooser)
+        table_frame.pack(fill="both", expand=True, padx=8, pady=5)
+        table_frame.rowconfigure(0, weight=1)
+        table_frame.columnconfigure(0, weight=1)
+        data_columns = [
+            "Site name", "Date", "System", "Reason", "Start time", "End time"
+        ]
+        chooser_columns = ["Tình trạng phiếu"] + data_columns
+        ticket_table = ttk.Treeview(
+            table_frame, columns=chooser_columns, show="headings", selectmode="browse"
+        )
+        vertical_scrollbar = ttk.Scrollbar(
+            table_frame, orient="vertical", command=ticket_table.yview
+        )
+        horizontal_scrollbar = ttk.Scrollbar(
+            table_frame, orient="horizontal", command=ticket_table.xview
+        )
+        ticket_table.configure(
+            yscrollcommand=vertical_scrollbar.set,
+            xscrollcommand=horizontal_scrollbar.set
+        )
+        for column in chooser_columns:
+            ticket_table.heading(column, text=column)
+            ticket_table.column(column, width=170, minwidth=120, anchor="w")
+        ticket_table.tag_configure(
+            "complete", background="#c6efce", foreground="#006100"
+        )
+        ticket_table.tag_configure(
+            "incomplete", background="#ffc7ce", foreground="#9c0006"
+        )
+        ticket_table.grid(row=0, column=0, sticky="nsew")
+        vertical_scrollbar.grid(row=0, column=1, sticky="ns")
+        horizontal_scrollbar.grid(row=1, column=0, sticky="ew")
+
+        for record in records:
+            is_complete = all(
+                str(record[column]).strip() for column in data_columns
+            )
+            ticket_table.insert(
+                "", "end", iid=str(record["excel_row"]),
+                values=[
+                    "Đầy đủ" if is_complete else "Thiếu thông tin",
+                    *[record[column] for column in data_columns]
+                ],
+                tags=("complete" if is_complete else "incomplete",)
+            )
+
+        def select_ticket():
+            selection = ticket_table.selection()
+            if not selection:
+                return
+            selected_row = int(selection[0])
+            selected_ticket["record"] = next(
+                record for record in records if record["excel_row"] == selected_row
+            )
+            # Release the modal grab before closing the chooser.  Fill the form
+            # on the next event-loop turn so the chooser is fully closed first.
+            chooser.grab_release()
+            chooser.destroy()
+            new_window.after_idle(fill_status_from_ticket)
+
+        tk.Button(
+            chooser, text="Chọn", command=select_ticket,
+            bg="#2196F3", fg="white", font=("Arial", 10, "bold"), width=12
+        ).pack(pady=8)
+
+    def fill_status_from_ticket():
+        record = selected_ticket["record"]
+        if record is None:
+            messagebox.showwarning("Chọn ticket", "Vui lòng bấm Choose Ticket trước.", parent=new_window)
+            return
+
+        set_widget_value(dept_entry, record["Site name"])
+        set_widget_value(device_entry, record["System"])
+        set_widget_value(start_date_entry, record["Date"])
+        set_widget_value(start_time_entry, record["Start time"])
+        set_widget_value(end_date_entry, record["Date"])
+        set_widget_value(end_time_entry, record["End time"])
+        set_widget_value(desc_entry, record["Reason"])
+
+        ticket_status = str(record["Status"]).strip().casefold()
+        status_mapping = "Normal - Đã xử lý" if ticket_status == "done" else "Alarm - Chưa xử lý"
+        status_entry.config(state="readonly")
+        status_entry.set(status_mapping)
+
+        if confirm_var.get() == "not_confirmed":
+            toggle_entry_fields()
+
     new_window.update_idletasks()
 
     # =====================================================
@@ -2827,6 +2987,10 @@ def create_new_window_status(title, content=None):
     
     rb_confirm.pack(anchor="w", padx=10, pady=2)
     rb_not_confirm.pack(anchor="w", padx=10, pady=2)
+    tk.Button(
+        confirm_frame, text="Choose Ticket", command=choose_ticket,
+        bg="#1800d8", fg="white", font=("Arial", 10, "bold")
+    ).pack(anchor="w", padx=10, pady=8)
 
     toggle_entry_fields()
 
@@ -2840,7 +3004,6 @@ def create_new_window_status(title, content=None):
     # =====================================================
     def handle_ok():
         if confirm_var.get() != "not_confirmed":
-            new_window.destroy()
             return
 
         # =============================================
@@ -2951,17 +3114,83 @@ def create_new_window_status(title, content=None):
         output_text.insert(tk.END, content)
         output_text.config(state="disabled")
 
+        if selected_ticket["record"] is not None:
+            try:
+                archive_status = "Done" if "Đã xử lý" in status_val else "Not yet"
+                archive_processing = "Đã xử lý" if archive_status == "Done" else "Đang xử lý"
+                updates = {
+                    "Status": archive_status,
+                    "Processing": archive_processing,
+                    "End time": end_time_str
+                }
+                update_ticket_archive_record(
+                    selected_ticket["record"]["excel_row"], updates
+                )
+            except Exception as error:
+                messagebox.showwarning(
+                    "Cảnh báo", f"Đã tạo nội dung Status nhưng không cập nhật được ticket:\n{error}",
+                    parent=new_window
+                )
+
         # =============================================
-        # FILL BOX & CLOSE WINDOW
+        # FILL BOX AND KEEP THE STATUS WINDOW OPEN
         # =============================================
         fill_box(2)
-        new_window.destroy()
+
+    def fill_ticket_to_archive():
+        record = selected_ticket["record"]
+        if record is None:
+            messagebox.showwarning(
+                "Chọn ticket", "Vui lòng bấm Choose Ticket trước khi lưu.", parent=new_window
+            )
+            return
+
+        try:
+            status_value = status_entry.get().strip()
+            archive_status = "Done" if "Đã xử lý" in status_value else "Not yet"
+            archive_processing = "Đã xử lý" if archive_status == "Done" else "Đang xử lý"
+            update_ticket_archive_record(
+                record["excel_row"],
+                {
+                    "Site name": dept_entry.get().strip(),
+                    "System": device_entry.get().strip(),
+                    "Date": start_date_entry.get().strip(),
+                    "Reason": desc_entry.get("1.0", tk.END).strip(),
+                    "Status": archive_status,
+                    "Processing": archive_processing,
+                    "Start time": start_time_entry.get().strip(),
+                    "End time": end_time_entry.get().strip()
+                }
+            )
+            messagebox.showinfo(
+                "Cập nhật ticket", "Đã ghi dữ liệu thành công vào Ticket Archive.xlsx.",
+                parent=new_window
+            )
+            selected_ticket["record"] = next(
+                (
+                    ticket for ticket in load_ticket_archive_records()
+                    if ticket["excel_row"] == record["excel_row"]
+                ),
+                record
+            )
+        except Exception as error:
+            messagebox.showerror(
+                "Cập nhật ticket", f"Không thể ghi dữ liệu vào Ticket Archive.xlsx:\n{error}",
+                parent=new_window
+            )
 
     # =====================================================
     # OK BUTTON
     # =====================================================
-    ok_button = tk.Button(new_window, text="OK", font=("Arial", 12, "bold"), bg="green", fg="white", command=handle_ok)
-    ok_button.pack(pady=10)
+    action_frame = tk.Frame(new_window)
+    action_frame.pack(pady=10)
+    ok_button = tk.Button(action_frame, text="OK", font=("Arial", 12, "bold"), bg="green", fg="white", command=handle_ok)
+    ok_button.pack(side="left", padx=5)
+    fill_button = tk.Button(
+        action_frame, text="Fill", font=("Arial", 12, "bold"),
+        bg="#f0a000", fg="white", command=fill_ticket_to_archive
+    )
+    fill_button.pack(side="left", padx=5)
 
 # == Cửa sổ ECMS ==
 def create_new_window_ecms():
